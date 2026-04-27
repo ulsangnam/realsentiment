@@ -150,9 +150,9 @@ function VoteCard({
                 className="flex items-center gap-2"
               >
                 <Coins size={16} className="text-yellow-400" />
-                <span className="text-white font-semibold text-sm">+10 VTX 보상 지급!</span>
+                <span className="text-white font-semibold text-sm">+10 VTX {issue.lang === "en" ? "rewarded!" : "보상 지급!"}</span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${voted === "yes" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
-                  {voted === "yes" ? "👍 찬성" : "👎 반대"} 완료
+                  {voted === "yes" ? (issue.lang === "en" ? "👍 Support" : "👍 찬성") : (issue.lang === "en" ? "👎 Oppose" : "👎 반대")}
                 </span>
               </motion.div>
             </AnimatePresence>
@@ -164,14 +164,14 @@ function VoteCard({
               onClick={() => handleVote("yes")}
               className="flex items-center justify-center gap-2 py-3 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 font-bold rounded-xl transition-all"
             >
-              <ThumbsUp size={16} /> 찬성
+              <ThumbsUp size={16} /> {issue.lang === "en" ? "Support" : "찬성"}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => handleVote("no")}
               className="flex items-center justify-center gap-2 py-3 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-400 font-bold rounded-xl transition-all"
             >
-              <ThumbsDown size={16} /> 반대
+              <ThumbsDown size={16} /> {issue.lang === "en" ? "Oppose" : "반대"}
             </motion.button>
           </>
         )}
@@ -183,17 +183,26 @@ function VoteCard({
 export default function VotePage() {
   const [votes, setVotes] = useState<VoteState>({});
   const [totalEarned, setTotalEarned] = useState(50);
-  const [filter, setFilter] = useState("전체");
+  const [lang, setLang] = useState<"en" | "ko">("en");
+  const [filter, setFilter] = useState("All");
 
-  const categories = ["전체", "기술·AI", "노동·경제", "금융·세금", "에너지·환경"];
+  const categoriesEn = ["All", "Tech & AI", "Labor & Economy", "Finance & Tax", "Energy & Climate"];
+  const categoriesKo = ["전체", "기술·AI", "노동·경제", "금융·세금", "에너지·환경"];
+  const categories = lang === "en" ? categoriesEn : categoriesKo;
 
-  const filtered = filter === "전체"
-    ? MOCK_ISSUES
-    : MOCK_ISSUES.filter((i) => i.category === filter);
+  const byLang = MOCK_ISSUES.filter((i) => i.lang === lang);
+  const filtered = filter === "All" || filter === "전체"
+    ? byLang
+    : byLang.filter((i) => i.category === filter);
 
   function handleVote(id: string, choice: "yes" | "no") {
     setVotes((prev) => ({ ...prev, [id]: choice }));
     setTotalEarned((prev) => prev + 10);
+  }
+
+  function switchLang(l: "en" | "ko") {
+    setLang(l);
+    setFilter(l === "en" ? "All" : "전체");
   }
 
   return (
@@ -202,12 +211,29 @@ export default function VotePage() {
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-white font-bold text-lg">🗳️ 오늘의 안건</h1>
-            <p className="text-[var(--muted)] text-xs">{MOCK_ISSUES.length}개 진행 중</p>
+            <h1 className="text-white font-bold text-lg">🗳️ {lang === "en" ? "Today's Issues" : "오늘의 안건"}</h1>
+            <p className="text-[var(--muted)] text-xs">{byLang.length} {lang === "en" ? "live now" : "개 진행 중"}</p>
           </div>
-          <div className="flex items-center gap-1.5 bg-yellow-500/15 border border-yellow-500/30 rounded-xl px-3 py-1.5">
-            <Coins size={14} className="text-yellow-400" />
-            <span className="text-yellow-400 font-bold text-sm">{totalEarned} VTX</span>
+          <div className="flex items-center gap-2">
+            {/* lang toggle */}
+            <div className="flex bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+              <button
+                onClick={() => switchLang("en")}
+                className={`px-3 py-1.5 text-xs font-bold transition-all ${lang === "en" ? "bg-indigo-600 text-white" : "text-[var(--muted)]"}`}
+              >
+                🇺🇸 EN
+              </button>
+              <button
+                onClick={() => switchLang("ko")}
+                className={`px-3 py-1.5 text-xs font-bold transition-all ${lang === "ko" ? "bg-indigo-600 text-white" : "text-[var(--muted)]"}`}
+              >
+                🇰🇷 KR
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 bg-yellow-500/15 border border-yellow-500/30 rounded-xl px-3 py-1.5">
+              <Coins size={14} className="text-yellow-400" />
+              <span className="text-yellow-400 font-bold text-sm">{totalEarned} VTX</span>
+            </div>
           </div>
         </div>
 
