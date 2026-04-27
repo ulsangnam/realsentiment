@@ -61,7 +61,7 @@ export default function OnboardingPage() {
               </motion.div>
 
               <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
-                Vote<span className="text-indigo-400">X</span>
+                Real<span className="text-indigo-400">Sentiment</span>
               </h1>
               <p className="text-[var(--muted)] mb-10 text-sm leading-relaxed">
                 블록체인으로 검증된 여론조사.<br />
