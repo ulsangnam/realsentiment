@@ -50,7 +50,7 @@ function VoteCard({
           </span>
           <div className="flex items-center gap-1 text-[var(--muted)] text-xs">
             <Clock size={12} />
-            {issue.expiresIn} 남음
+            {issue.expiresIn} {issue.lang === "en" ? "left" : "남음"}
           </div>
         </div>
 
@@ -77,8 +77,8 @@ function VoteCard({
           />
         </div>
         <div className="flex justify-between mt-1.5">
-          <span className="text-emerald-400 text-xs font-bold">{yesPercent}% 찬성</span>
-          <span className="text-rose-400 text-xs font-bold">반대 {noPercent}%</span>
+          <span className="text-emerald-400 text-xs font-bold">{yesPercent}% {issue.lang === "en" ? "Support" : "찬성"}</span>
+          <span className="text-rose-400 text-xs font-bold">{issue.lang === "en" ? "Oppose" : "반대"} {noPercent}%</span>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ function VoteCard({
           onClick={() => setShowChart(!showChart)}
           className="flex items-center gap-1 text-[var(--muted)] hover:text-indigo-400 text-xs transition-colors"
         >
-          실시간 추이 {showChart ? "▲" : "▼"}
+          {issue.lang === "en" ? "Live trend" : "실시간 추이"} {showChart ? "▲" : "▼"}
         </button>
         <AnimatePresence>
           {showChart && (
@@ -117,8 +117,8 @@ function VoteCard({
                     labelStyle={{ color: "#94a3b8" }}
                     formatter={(v) => [`${v}%`]}
                   />
-                  <Area type="monotone" dataKey="yes" stroke="#10b981" strokeWidth={2} fill={`url(#yes-${issue.id})`} name="찬성" />
-                  <Area type="monotone" dataKey="no" stroke="#f43f5e" strokeWidth={2} fill={`url(#no-${issue.id})`} name="반대" />
+                  <Area type="monotone" dataKey="yes" stroke="#10b981" strokeWidth={2} fill={`url(#yes-${issue.id})`} name={issue.lang === "en" ? "Support" : "찬성"} />
+                  <Area type="monotone" dataKey="no" stroke="#f43f5e" strokeWidth={2} fill={`url(#no-${issue.id})`} name={issue.lang === "en" ? "Oppose" : "반대"} />
                 </AreaChart>
               </ResponsiveContainer>
             </motion.div>
@@ -130,7 +130,7 @@ function VoteCard({
       <div className="px-4 pb-3 flex items-center gap-3 text-[var(--muted)] text-xs">
         <div className="flex items-center gap-1">
           <Users size={12} />
-          {(issue.totalVoters / 1000).toFixed(0)}K 참여
+          {(issue.totalVoters / 1000).toFixed(0)}K {issue.lang === "en" ? "voted" : "참여"}
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {issue.tags.map((tag) => (
