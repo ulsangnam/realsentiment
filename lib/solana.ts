@@ -21,17 +21,19 @@ export function getVotePDA(voter: PublicKey, issueId: string): PublicKey {
   return pda;
 }
 
-// Builds an unsigned vote transaction — caller is responsible for signing
+// Builds an unsigned vote transaction — caller is responsible for signing.
+// feePayer defaults to voter; pass a separate pubkey for gas sponsorship.
 export async function buildVoteTransaction(
   voterAddress: string,
   issueId: string,
-  support: boolean
+  support: boolean,
+  feePayerAddress?: string
 ): Promise<Transaction> {
   const voter = new PublicKey(voterAddress);
+  const feePayer = feePayerAddress ? new PublicKey(feePayerAddress) : voter;
   const issuePDA = getIssuePDA(issueId);
   const votePDA = getVotePDA(voter, issueId);
 
-  // Read-only provider (no wallet needed for tx building)
   const provider = new AnchorProvider(
     CONNECTION,
     { publicKey: voter, signTransaction: async (tx) => tx, signAllTransactions: async (txs) => txs },
@@ -48,7 +50,7 @@ export async function buildVoteTransaction(
     .instruction();
 
   const { blockhash } = await CONNECTION.getLatestBlockhash();
-  const tx = new Transaction({ recentBlockhash: blockhash, feePayer: voter });
+  const tx = new Transaction({ recentBlockhash: blockhash, feePayer });
   tx.add(ix as never);
   return tx;
 }

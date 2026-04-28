@@ -10,8 +10,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useStandardWallets } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
-import { buildVoteTransaction, sendSignedTransaction, CONNECTION } from "@/lib/solana";
-import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { buildVoteTransaction } from "@/lib/solana";
 
 type VoteState = Record<string, "yes" | "no" | null>;
 
@@ -230,39 +229,28 @@ export default function VotePage() {
 
   const solanaWallet = standardWallets[0] ?? embeddedWallets[0];
 
-  // Auto-airdrop devnet SOL if wallet is empty
-  useEffect(() => {
-    if (!solanaWallet) return;
-    (async () => {
-      try {
-        const pubkey = new PublicKey(solanaWallet.address);
-        const balance = await CONNECTION.getBalance(pubkey);
-        if (balance === 0) {
-          await CONNECTION.requestAirdrop(pubkey, LAMPORTS_PER_SOL);
-          console.log("Airdropped 1 SOL to", solanaWallet.address);
-        }
-      } catch (e) {
-        console.warn("Airdrop failed:", e);
-      }
-    })();
-  }, [solanaWallet?.address]);
-
   async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
-    console.log("onChainVote called", { solanaWallet, user, standardWallets, embeddedWallets });
     const wallet = solanaWallet;
-    if (!wallet || !user) {
-      console.warn("No wallet or user:", { wallet, user });
-      return null;
-    }
+    if (!wallet || !user) return null;
     try {
-      const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes");
+      const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER;
+      const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes", feePayerAddress);
+      // Voter signs (fee payer sig added server-side)
       const serialized = tx.serialize({ requireAllSignatures: false });
       const { signedTransaction } = await signTransaction({
         transaction: serialized,
         wallet,
         chain: "solana:devnet",
       });
-      return await sendSignedTransaction(signedTransaction);
+      const signedTxBase64 = Buffer.from(signedTransaction).toString("base64");
+      const res = await fetch("/api/vote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedTxBase64 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "vote API failed");
+      return data.signature as string;
     } catch (e) {
       console.warn("on-chain vote failed:", e);
       return null;
