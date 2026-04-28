@@ -12,7 +12,10 @@ const CONNECTION = new Connection(clusterApiUrl("devnet"), "confirmed");
 function getFeePayerKeypair(): Keypair {
   const secret = process.env.SOLANA_FEE_PAYER_SECRET;
   if (!secret) throw new Error("SOLANA_FEE_PAYER_SECRET not set");
-  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secret) as number[]));
+  // Handle both plain array and quoted string from Vercel env
+  let parsed = JSON.parse(secret);
+  if (typeof parsed === "string") parsed = JSON.parse(parsed);
+  return Keypair.fromSecretKey(Uint8Array.from(parsed as number[]));
 }
 
 async function ensureFunded(keypair: Keypair): Promise<void> {
