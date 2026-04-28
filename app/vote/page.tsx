@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Shield, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useWallets, useSignTransaction, useStandardWallets } from "@privy-io/react-auth/solana";
+import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
 import { buildVoteTransaction } from "@/lib/solana";
@@ -223,11 +223,18 @@ export default function VotePage() {
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
   const { authenticated, login, user } = usePrivy();
-  const { wallets: standardWallets } = useWallets();
-  const { wallets: embeddedWallets } = useStandardWallets();
+  const { wallets, ready: walletsReady } = useWallets();
   const { signTransaction } = useSignTransaction();
+  const { createWallet } = useCreateWallet();
 
-  const solanaWallet = standardWallets[0] ?? embeddedWallets[0];
+  const solanaWallet = wallets[0] ?? null;
+
+  // Auto-create embedded Solana wallet if none exists after initialization
+  useEffect(() => {
+    if (authenticated && walletsReady && wallets.length === 0) {
+      createWallet().catch(() => {/* wallet may already exist */});
+    }
+  }, [authenticated, walletsReady, wallets.length]);
 
   async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
     const wallet = solanaWallet;
