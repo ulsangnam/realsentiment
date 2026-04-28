@@ -7,10 +7,6 @@ import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 const solanaConnectors = toSolanaWalletConnectors({ shouldAutoConnect: false });
 
 const solanaRpcs = {
-  "solana:mainnet": {
-    rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"),
-    rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.mainnet-beta.solana.com"),
-  },
   "solana:devnet": {
     rpc: createSolanaRpc("https://api.devnet.solana.com"),
     rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.devnet.solana.com"),

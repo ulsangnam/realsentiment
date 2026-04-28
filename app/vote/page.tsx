@@ -236,7 +236,7 @@ export default function VotePage() {
       const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER;
       const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes", feePayerAddress);
       // Voter signs (fee payer sig added server-side)
-      const serialized = tx.serialize({ requireAllSignatures: false });
+      const serialized = tx.serialize();
       const { signedTransaction } = await signTransaction({
         transaction: serialized,
         wallet,

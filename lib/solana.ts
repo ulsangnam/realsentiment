@@ -1,5 +1,11 @@
-import { Connection, PublicKey, Transaction, clusterApiUrl } from "@solana/web3.js";
-import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
+import {
+  Connection,
+  PublicKey,
+  VersionedTransaction,
+  TransactionMessage,
+  clusterApiUrl,
+} from "@solana/web3.js";
+import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import IDL from "./idl.json";
 
 export const PROGRAM_ID = new PublicKey("24DscDehhLv8WamjRUc3Zj3B9hSt8wPeiiLCFX7r1XWy");
@@ -21,14 +27,14 @@ export function getVotePDA(voter: PublicKey, issueId: string): PublicKey {
   return pda;
 }
 
-// Builds an unsigned vote transaction — caller is responsible for signing.
-// feePayer defaults to voter; pass a separate pubkey for gas sponsorship.
+// Returns a VersionedTransaction (v0) so Privy can sign it natively.
+// feePayer defaults to voter; pass server pubkey for gas sponsorship.
 export async function buildVoteTransaction(
   voterAddress: string,
   issueId: string,
   support: boolean,
   feePayerAddress?: string
-): Promise<Transaction> {
+): Promise<VersionedTransaction> {
   const voter = new PublicKey(voterAddress);
   const feePayer = feePayerAddress ? new PublicKey(feePayerAddress) : voter;
   const issuePDA = getIssuePDA(issueId);
@@ -50,17 +56,11 @@ export async function buildVoteTransaction(
     .instruction();
 
   const { blockhash } = await CONNECTION.getLatestBlockhash();
-  const tx = new Transaction({ recentBlockhash: blockhash, feePayer });
-  tx.add(ix as never);
-  return tx;
-}
+  const message = new TransactionMessage({
+    payerKey: feePayer,
+    recentBlockhash: blockhash,
+    instructions: [ix as never],
+  }).compileToV0Message();
 
-// Send a pre-signed transaction (raw bytes)
-export async function sendSignedTransaction(signedTxBytes: Uint8Array): Promise<string> {
-  const sig = await CONNECTION.sendRawTransaction(signedTxBytes, {
-    skipPreflight: false,
-    preflightCommitment: "confirmed",
-  });
-  await CONNECTION.confirmTransaction(sig, "confirmed");
-  return sig;
+  return new VersionedTransaction(message);
 }
