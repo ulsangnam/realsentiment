@@ -3,6 +3,7 @@ import {
   PublicKey,
   VersionedTransaction,
   TransactionMessage,
+  SystemProgram,
   clusterApiUrl,
 } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
@@ -27,8 +28,9 @@ export function getVotePDA(voter: PublicKey, issueId: string): PublicKey {
   return pda;
 }
 
-// Returns a VersionedTransaction (v0) so Privy can sign it natively.
-// feePayer defaults to voter; pass server pubkey for gas sponsorship.
+// Minimum lamports to cover vote_record account rent (~1.49M) plus buffer
+const RENT_BUFFER_LAMPORTS = 3_000_000; // 0.003 SOL
+
 export async function buildVoteTransaction(
   voterAddress: string,
   issueId: string,
@@ -47,7 +49,7 @@ export async function buildVoteTransaction(
   );
   const program = new Program(IDL as never, provider);
 
-  const ix = await (program.methods as never as {
+  const voteIx = await (program.methods as never as {
     castVote: (issueId: string, support: boolean) => {
       accounts: (a: object) => { instruction: () => Promise<unknown> }
     }
@@ -55,11 +57,29 @@ export async function buildVoteTransaction(
     .accounts({ issue: issuePDA, voteRecord: votePDA, voter })
     .instruction();
 
+  const instructions = [];
+
+  // If fee payer is sponsoring, prepend a SOL transfer to cover vote_record rent
+  if (feePayerAddress && feePayer.toBase58() !== voter.toBase58()) {
+    const voterBalance = await CONNECTION.getBalance(voter);
+    if (voterBalance < RENT_BUFFER_LAMPORTS) {
+      instructions.push(
+        SystemProgram.transfer({
+          fromPubkey: feePayer,
+          toPubkey: voter,
+          lamports: RENT_BUFFER_LAMPORTS,
+        })
+      );
+    }
+  }
+
+  instructions.push(voteIx as never);
+
   const { blockhash } = await CONNECTION.getLatestBlockhash();
   const message = new TransactionMessage({
     payerKey: feePayer,
     recentBlockhash: blockhash,
-    instructions: [ix as never],
+    instructions,
   }).compileToV0Message();
 
   return new VersionedTransaction(message);
