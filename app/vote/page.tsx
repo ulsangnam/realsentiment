@@ -9,7 +9,6 @@ import { ThumbsUp, ThumbsDown, Clock, Users, Coins, ExternalLink, Shield } from 
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
-import CivicGate from "@/components/CivicGate";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
 import { castVoteOnChain } from "@/lib/solana";
 import { PublicKey } from "@solana/web3.js";
@@ -267,7 +266,6 @@ export default function VotePage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <CivicGate>
       {/* top bar */}
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
@@ -348,7 +346,6 @@ export default function VotePage() {
       </div>
 
       <Navbar />
-      </CivicGate>
     </div>
   );
 }
