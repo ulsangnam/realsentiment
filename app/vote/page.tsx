@@ -29,6 +29,7 @@ function VoteCard({
   const [animBalance, setAnimBalance] = useState({ yes: issue.yesVotes, no: issue.noVotes });
   const [txSig, setTxSig] = useState<string | null>(null);
   const [onChainLoading, setOnChainLoading] = useState(false);
+  const [onChainError, setOnChainError] = useState<string | null>(null);
 
   const yesPercent = Math.round((animBalance.yes / (animBalance.yes + animBalance.no)) * 100);
   const noPercent = 100 - yesPercent;
@@ -41,11 +42,14 @@ function VoteCard({
     }));
     onVote(issue.id, choice);
     setOnChainLoading(true);
+    setOnChainError(null);
     try {
       const sig = await onChainVote(issue.id, choice);
       if (sig) setTxSig(sig);
+      else setOnChainError("no wallet / not signed");
     } catch (e) {
-      console.warn("on-chain vote:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      setOnChainError(msg);
     } finally {
       setOnChainLoading(false);
     }
@@ -190,6 +194,11 @@ function VoteCard({
                       View on Solscan
                     </a>
                   )}
+                  {onChainError && !txSig && (
+                    <p className="text-rose-400 text-[10px] max-w-[220px] break-all">
+                      ⚠ {onChainError}
+                    </p>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -227,7 +236,9 @@ export default function VotePage() {
   const { signTransaction } = useSignTransaction();
   const { createWallet } = useCreateWallet();
 
-  const solanaWallet = wallets[0] ?? null;
+  // Prefer Privy embedded wallet; skip external wallets (Backpack, Phantom)
+  const privyWallet = wallets.find((w) => w.name?.toLowerCase().includes("privy")) ?? null;
+  const solanaWallet = privyWallet ?? (walletsReady && wallets.length > 0 ? wallets[0] : null);
 
   // Auto-create embedded Solana wallet if none exists after initialization
   useEffect(() => {
@@ -238,30 +249,26 @@ export default function VotePage() {
 
   async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
     const wallet = solanaWallet;
-    if (!wallet || !user) return null;
-    try {
-      const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER;
-      const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes", feePayerAddress);
-      // Voter signs (fee payer sig added server-side)
-      const serialized = tx.serialize();
-      const { signedTransaction } = await signTransaction({
-        transaction: serialized,
-        wallet,
-        chain: "solana:devnet",
-      });
-      const signedTxBase64 = Buffer.from(signedTransaction).toString("base64");
-      const res = await fetch("/api/vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signedTxBase64 }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "vote API failed");
-      return data.signature as string;
-    } catch (e) {
-      console.warn("on-chain vote failed:", e);
-      return null;
-    }
+    if (!wallet) throw new Error(`no wallet (ready=${walletsReady}, count=${wallets.length})`);
+    if (!user) throw new Error("not authenticated");
+    const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER;
+    const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes", feePayerAddress);
+    // Convert Buffer → Uint8Array so it survives Privy's postMessage serialization
+    const serialized = new Uint8Array(tx.serialize());
+    const { signedTransaction } = await signTransaction({
+      transaction: serialized,
+      wallet,
+      chain: "solana:devnet",
+    });
+    const signedTxBase64 = Buffer.from(signedTransaction).toString("base64");
+    const res = await fetch("/api/vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signedTxBase64 }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "vote API failed");
+    return data.signature as string;
   }
 
   const categoriesEn = ["All", "Tech & AI", "Labor & Economy", "Finance & Tax", "Energy & Climate"];
