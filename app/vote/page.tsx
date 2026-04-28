@@ -1,14 +1,19 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Wallet, ExternalLink } from "lucide-react";
-import { useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { ThumbsUp, ThumbsDown, Clock, Users, Coins, ExternalLink, Shield } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
+import CivicGate from "@/components/CivicGate";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
 import { castVoteOnChain } from "@/lib/solana";
+import { PublicKey } from "@solana/web3.js";
+
 
 type VoteState = Record<string, "yes" | "no" | null>;
 
@@ -21,7 +26,8 @@ function VoteCard({
   issue: Issue;
   onVote: (id: string, choice: "yes" | "no") => void;
   voted: "yes" | "no" | null;
-  anchorWallet: ReturnType<typeof useAnchorWallet>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  anchorWallet: any;
 }) {
   const [showChart, setShowChart] = useState(false);
   const [animBalance, setAnimBalance] = useState({ yes: issue.yesVotes, no: issue.noVotes });
@@ -225,8 +231,20 @@ export default function VotePage() {
   const [totalEarned, setTotalEarned] = useState(50);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
-  const { connected } = useWallet();
-  const anchorWallet = useAnchorWallet();
+  const { authenticated, login } = usePrivy();
+  const { wallets } = useWallets();
+  const privyWallet = wallets[0];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anchorWallet: any = privyWallet
+    ? {
+        publicKey: new PublicKey(privyWallet.address),
+        signTransaction: (tx: unknown) => privyWallet.signTransaction({ transaction: tx as never }).then((r) => r.signedTransaction as unknown),
+        signAllTransactions: async (txs: unknown[]) => {
+          const results = await Promise.all(txs.map((tx) => privyWallet.signTransaction({ transaction: tx as never })));
+          return results.map((r) => r.signedTransaction as unknown);
+        },
+      }
+    : undefined;
 
   const categoriesEn = ["All", "Tech & AI", "Labor & Economy", "Finance & Tax", "Energy & Climate"];
   const categoriesKo = ["전체", "기술·AI", "노동·경제", "금융·세금", "에너지·환경"];
@@ -249,6 +267,7 @@ export default function VotePage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      <CivicGate>
       {/* top bar */}
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
@@ -278,22 +297,19 @@ export default function VotePage() {
             </div>
           </div>
         </div>
-        {/* wallet connect bar */}
+        {/* auth status bar */}
         <div className="px-4 pb-3 flex items-center justify-between">
-          <p className="text-[var(--muted)] text-xs flex items-center gap-1">
-            <Wallet size={12} />
-            {connected ? <span className="text-emerald-400">Solana connected — votes recorded on-chain</span> : "Connect wallet to record votes on Solana"}
-          </p>
-          <WalletMultiButton style={{
-            background: connected ? "rgba(16,185,129,0.15)" : "rgba(99,102,241,0.2)",
-            border: connected ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(99,102,241,0.4)",
-            borderRadius: "12px",
-            fontSize: "12px",
-            fontWeight: "700",
-            height: "32px",
-            padding: "0 12px",
-            color: connected ? "#34d399" : "#a5b4fc",
-          }} />
+          {authenticated ? (
+            <p className="text-emerald-400 text-xs flex items-center gap-1">
+              <Shield size={12} />
+              Civic verified — votes recorded on Solana
+            </p>
+          ) : (
+            <button onClick={login} className="text-indigo-400 text-xs flex items-center gap-1 hover:text-indigo-300 transition-colors">
+              <Shield size={12} />
+              Sign in to record votes on-chain
+            </button>
+          )}
         </div>
 
         {/* category filter */}
@@ -332,6 +348,7 @@ export default function VotePage() {
       </div>
 
       <Navbar />
+      </CivicGate>
     </div>
   );
 }
