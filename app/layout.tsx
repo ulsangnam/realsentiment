@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import SessionProvider from "@/components/SessionProvider";
+import SolanaWalletProvider from "@/components/WalletProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -14,7 +15,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" className="h-full">
       <body className={`${inter.className} min-h-full flex flex-col antialiased`}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <SolanaWalletProvider>
+            {children}
+          </SolanaWalletProvider>
+        </SessionProvider>
       </body>
     </html>
   );
