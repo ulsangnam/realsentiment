@@ -5,11 +5,12 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Shield } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Shield, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
+import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
-
+import { buildVoteTransaction, sendSignedTransaction } from "@/lib/solana";
 
 type VoteState = Record<string, "yes" | "no" | null>;
 
@@ -17,24 +18,37 @@ function VoteCard({
   issue,
   onVote,
   voted,
+  onChainVote,
 }: {
   issue: Issue;
   onVote: (id: string, choice: "yes" | "no") => void;
   voted: "yes" | "no" | null;
+  onChainVote: (issueId: string, choice: "yes" | "no") => Promise<string | null>;
 }) {
   const [showChart, setShowChart] = useState(false);
   const [animBalance, setAnimBalance] = useState({ yes: issue.yesVotes, no: issue.noVotes });
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [onChainLoading, setOnChainLoading] = useState(false);
 
   const yesPercent = Math.round((animBalance.yes / (animBalance.yes + animBalance.no)) * 100);
   const noPercent = 100 - yesPercent;
 
-  function handleVote(choice: "yes" | "no") {
+  async function handleVote(choice: "yes" | "no") {
     if (voted) return;
     setAnimBalance((prev) => ({
       yes: choice === "yes" ? prev.yes + 1 : prev.yes,
       no: choice === "no" ? prev.no + 1 : prev.no,
     }));
     onVote(issue.id, choice);
+    setOnChainLoading(true);
+    try {
+      const sig = await onChainVote(issue.id, choice);
+      if (sig) setTxSig(sig);
+    } catch (e) {
+      console.warn("on-chain vote:", e);
+    } finally {
+      setOnChainLoading(false);
+    }
   }
 
   return (
@@ -151,12 +165,31 @@ function VoteCard({
                 animate={{ scale: 1, opacity: 1 }}
                 className="flex items-center gap-2"
               >
-                <div className="flex items-center gap-2">
-                  <Coins size={16} className="text-yellow-400" />
-                  <span className="text-white font-semibold text-sm">+10 VTX {issue.lang === "en" ? "rewarded!" : "보상 지급!"}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${voted === "yes" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
-                    {voted === "yes" ? (issue.lang === "en" ? "👍 Support" : "👍 찬성") : (issue.lang === "en" ? "👎 Oppose" : "👎 반대")}
-                  </span>
+                <div className="flex flex-col items-center gap-1.5 w-full">
+                  <div className="flex items-center gap-2">
+                    <Coins size={16} className="text-yellow-400" />
+                    <span className="text-white font-semibold text-sm">+10 VTX {issue.lang === "en" ? "rewarded!" : "보상 지급!"}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${voted === "yes" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                      {voted === "yes" ? (issue.lang === "en" ? "👍 Support" : "👍 찬성") : (issue.lang === "en" ? "👎 Oppose" : "👎 반대")}
+                    </span>
+                  </div>
+                  {onChainLoading && (
+                    <p className="text-indigo-400 text-xs flex items-center gap-1">
+                      <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      {issue.lang === "en" ? "Recording on Solana..." : "솔라나 기록 중..."}
+                    </p>
+                  )}
+                  {txSig && (
+                    <a
+                      href={`https://solscan.io/tx/${txSig}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
+                    >
+                      <ExternalLink size={11} />
+                      View on Solscan
+                    </a>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -189,7 +222,27 @@ export default function VotePage() {
   const [totalEarned, setTotalEarned] = useState(50);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login, user } = usePrivy();
+  const { wallets } = useWallets();
+  const { signTransaction } = useSignTransaction();
+
+  async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
+    const wallet = wallets[0];
+    if (!wallet || !user) return null;
+    try {
+      const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes");
+      const serialized = tx.serialize({ requireAllSignatures: false });
+      const { signedTransaction } = await signTransaction({
+        transaction: serialized,
+        wallet,
+        chain: "solana:devnet",
+      });
+      return await sendSignedTransaction(signedTransaction);
+    } catch (e) {
+      console.warn("on-chain vote failed:", e);
+      return null;
+    }
+  }
 
   const categoriesEn = ["All", "Tech & AI", "Labor & Economy", "Finance & Tax", "Energy & Climate"];
   const categoriesKo = ["전체", "기술·AI", "노동·경제", "금융·세금", "에너지·환경"];
@@ -287,6 +340,7 @@ export default function VotePage() {
               issue={issue}
               onVote={handleVote}
               voted={votes[issue.id] ?? null}
+              onChainVote={onChainVote}
             />
           ))}
         </AnimatePresence>

@@ -1,15 +1,9 @@
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, clusterApiUrl } from "@solana/web3.js";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
-import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import IDL from "./idl.json";
 
 export const PROGRAM_ID = new PublicKey("24DscDehhLv8WamjRUc3Zj3B9hSt8wPeiiLCFX7r1XWy");
 export const CONNECTION = new Connection(clusterApiUrl("devnet"), "confirmed");
-
-export function getProgram(wallet: AnchorWallet) {
-  const provider = new AnchorProvider(CONNECTION, wallet, { commitment: "confirmed" });
-  return new Program(IDL as never, provider);
-}
 
 export function getIssuePDA(issueId: string): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
@@ -27,27 +21,44 @@ export function getVotePDA(voter: PublicKey, issueId: string): PublicKey {
   return pda;
 }
 
-export async function castVoteOnChain(
-  wallet: AnchorWallet,
+// Builds an unsigned vote transaction — caller is responsible for signing
+export async function buildVoteTransaction(
+  voterAddress: string,
   issueId: string,
   support: boolean
-): Promise<string> {
-  const program = getProgram(wallet);
-  const voter = wallet.publicKey;
+): Promise<Transaction> {
+  const voter = new PublicKey(voterAddress);
   const issuePDA = getIssuePDA(issueId);
   const votePDA = getVotePDA(voter, issueId);
 
-  const tx = await (program.methods as never as {
+  // Read-only provider (no wallet needed for tx building)
+  const provider = new AnchorProvider(
+    CONNECTION,
+    { publicKey: voter, signTransaction: async (tx) => tx, signAllTransactions: async (txs) => txs },
+    { commitment: "confirmed" }
+  );
+  const program = new Program(IDL as never, provider);
+
+  const ix = await (program.methods as never as {
     castVote: (issueId: string, support: boolean) => {
-      accounts: (a: object) => { rpc: () => Promise<string> }
+      accounts: (a: object) => { instruction: () => Promise<unknown> }
     }
   }).castVote(issueId, support)
-    .accounts({
-      issue: issuePDA,
-      voteRecord: votePDA,
-      voter,
-    })
-    .rpc();
+    .accounts({ issue: issuePDA, voteRecord: votePDA, voter })
+    .instruction();
 
+  const { blockhash } = await CONNECTION.getLatestBlockhash();
+  const tx = new Transaction({ recentBlockhash: blockhash, feePayer: voter });
+  tx.add(ix as never);
   return tx;
+}
+
+// Send a pre-signed transaction (raw bytes)
+export async function sendSignedTransaction(signedTxBytes: Uint8Array): Promise<string> {
+  const sig = await CONNECTION.sendRawTransaction(signedTxBytes, {
+    skipPreflight: false,
+    preflightCommitment: "confirmed",
+  });
+  await CONNECTION.confirmTransaction(sig, "confirmed");
+  return sig;
 }
