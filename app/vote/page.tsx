@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Shield, ExternalLink } from "lucide-react";
@@ -10,7 +10,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useStandardWallets } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
-import { buildVoteTransaction, sendSignedTransaction } from "@/lib/solana";
+import { buildVoteTransaction, sendSignedTransaction, CONNECTION } from "@/lib/solana";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 type VoteState = Record<string, "yes" | "no" | null>;
 
@@ -228,6 +229,23 @@ export default function VotePage() {
   const { signTransaction } = useSignTransaction();
 
   const solanaWallet = standardWallets[0] ?? embeddedWallets[0];
+
+  // Auto-airdrop devnet SOL if wallet is empty
+  useEffect(() => {
+    if (!solanaWallet) return;
+    (async () => {
+      try {
+        const pubkey = new PublicKey(solanaWallet.address);
+        const balance = await CONNECTION.getBalance(pubkey);
+        if (balance === 0) {
+          await CONNECTION.requestAirdrop(pubkey, LAMPORTS_PER_SOL);
+          console.log("Airdropped 1 SOL to", solanaWallet.address);
+        }
+      } catch (e) {
+        console.warn("Airdrop failed:", e);
+      }
+    })();
+  }, [solanaWallet?.address]);
 
   async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
     console.log("onChainVote called", { solanaWallet, user, standardWallets, embeddedWallets });
