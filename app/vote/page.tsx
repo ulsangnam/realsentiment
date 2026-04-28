@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { ThumbsUp, ThumbsDown, Clock, Users, Coins, Shield, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useWallets, useSignTransaction } from "@privy-io/react-auth/solana";
+import { useWallets, useSignTransaction, useStandardWallets } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
 import { buildVoteTransaction, sendSignedTransaction } from "@/lib/solana";
@@ -223,12 +223,19 @@ export default function VotePage() {
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
   const { authenticated, login, user } = usePrivy();
-  const { wallets } = useWallets();
+  const { wallets: standardWallets } = useWallets();
+  const { wallets: embeddedWallets } = useStandardWallets();
   const { signTransaction } = useSignTransaction();
 
+  const solanaWallet = standardWallets[0] ?? embeddedWallets[0];
+
   async function onChainVote(issueId: string, choice: "yes" | "no"): Promise<string | null> {
-    const wallet = wallets[0];
-    if (!wallet || !user) return null;
+    console.log("onChainVote called", { solanaWallet, user, standardWallets, embeddedWallets });
+    const wallet = solanaWallet;
+    if (!wallet || !user) {
+      console.warn("No wallet or user:", { wallet, user });
+      return null;
+    }
     try {
       const tx = await buildVoteTransaction(wallet.address, issueId, choice === "yes");
       const serialized = tx.serialize({ requireAllSignatures: false });
