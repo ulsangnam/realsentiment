@@ -237,7 +237,11 @@ export default function VotePage() {
   const { createWallet } = useCreateWallet();
 
   // Prefer Privy embedded wallet; skip external wallets (Backpack, Phantom)
-  const privyWallet = wallets.find((w) => w.name?.toLowerCase().includes("privy")) ?? null;
+  // ConnectedStandardSolanaWallet may have walletClientType or address from Privy's embedded wallet
+  const privyWallet = wallets.find(
+    (w) => ("walletClientType" in w && (w as Record<string, unknown>).walletClientType === "privy") ||
+           ("name" in w && String((w as Record<string, unknown>).name).toLowerCase().includes("privy"))
+  ) ?? null;
   const solanaWallet = privyWallet ?? (walletsReady && wallets.length > 0 ? wallets[0] : null);
 
   // Auto-create embedded Solana wallet if none exists after initialization
