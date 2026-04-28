@@ -121,9 +121,26 @@ export default function RewardsPage() {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          <h1 className="text-white font-bold text-lg">💎 {lang === "en" ? "My Rewards" : "내 보상"}</h1>
-          <p className="text-[var(--muted)] text-xs">{lang === "en" ? "Vote rewards & SBT collection" : "투표 기여 보상 및 SBT 컬렉션"}</p>
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-white font-bold text-lg">💎 {lang === "en" ? "My Rewards" : "내 보상"}</h1>
+            <p className="text-[var(--muted)] text-xs">{lang === "en" ? "Vote rewards & SBT collection" : "투표 기여 보상 및 SBT 컬렉션"}</p>
+          </div>
+          <div className="flex bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+            {(["en", "ko"] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => {
+                  setLang(l);
+                  localStorage.setItem("rs_lang", l);
+                  window.dispatchEvent(new StorageEvent("storage", { key: "rs_lang", newValue: l }));
+                }}
+                className={`px-3 py-1.5 text-xs font-bold transition-all ${lang === l ? "bg-indigo-600 text-white" : "text-[var(--muted)]"}`}
+              >
+                {l === "en" ? "🇺🇸 EN" : "🇰🇷 KR"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
