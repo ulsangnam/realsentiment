@@ -262,6 +262,8 @@ export default function VotePage() {
   function switchLang(l: "en" | "ko") {
     setLang(l);
     setFilter(l === "en" ? "All" : "전체");
+    localStorage.setItem("rs_lang", l);
+    window.dispatchEvent(new StorageEvent("storage", { key: "rs_lang", newValue: l }));
   }
 
   return (
