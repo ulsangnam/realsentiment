@@ -18,10 +18,16 @@ async function main() {
   const program = new anchor.Program(idl, provider);
 
   const politicians = [
-    { id: "yoon-sy",  name: "윤석열", party: "국민의힘",    role: "전 대통령", leaning: 1  },
-    { id: "moon-ji",  name: "문재인", party: "더불어민주당", role: "전 대통령", leaning: -1 },
-    { id: "lee-jm",   name: "이재명", party: "더불어민주당", role: "대표",      leaning: -1 },
-    { id: "cho-guk",  name: "조국",   party: "조국혁신당",   role: "대표",      leaning: -1 },
+    // KO
+    { id: "yoon-sy",  name: "윤석열",        party: "국민의힘",       role: "전 대통령", leaning:  1 },
+    { id: "moon-ji",  name: "문재인",        party: "더불어민주당",    role: "전 대통령", leaning: -1 },
+    { id: "lee-jm",   name: "이재명",        party: "더불어민주당",    role: "대표",      leaning: -1 },
+    { id: "cho-guk",  name: "조국",          party: "조국혁신당",      role: "대표",      leaning: -1 },
+    // EN
+    { id: "trump",    name: "Donald Trump",  party: "Republican",     role: "President", leaning:  1 },
+    { id: "biden",    name: "Joe Biden",     party: "Democrat",       role: "Former President", leaning: -1 },
+    { id: "harris",   name: "Kamala Harris", party: "Democrat",       role: "Former VP", leaning: -1 },
+    { id: "sanders",  name: "Bernie Sanders",party: "Democrat",       role: "Senator",   leaning: -1 },
   ];
 
   for (const p of politicians) {

@@ -26,18 +26,31 @@ import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import IDL from "@/lib/idl.json";
 import Navbar from "@/components/Navbar";
 
-const SCORE_LABELS = ["매우비지지", "비지지", "중립", "지지", "매우지지"];
+const EN_IDS = ["trump", "biden", "harris", "sanders"];
+
+const SCORE_LABELS_KO = ["매우비지지", "비지지", "중립", "지지", "매우지지"];
+const SCORE_LABELS_EN = ["Strongly Oppose", "Oppose", "Neutral", "Support", "Strongly Support"];
 const SCORE_EMOJI  = ["😡", "🙁", "😐", "🙂", "😊"];
 const SCORE_COLORS = ["#ef4444", "#f97316", "#94a3b8", "#34d399", "#10b981"];
-const STANCE_LABEL: Record<number, { text: string; color: string }> = {
+const STANCE_LABEL_KO: Record<number, { text: string; color: string }> = {
   [-1]: { text: "반대", color: "#ef4444" },
   0:    { text: "중립", color: "#94a3b8" },
   1:    { text: "찬성", color: "#34d399" },
 };
-const LEANING_LABEL: Record<number, { text: string; color: string }> = {
+const STANCE_LABEL_EN: Record<number, { text: string; color: string }> = {
+  [-1]: { text: "Against",  color: "#ef4444" },
+  0:    { text: "Neutral",  color: "#94a3b8" },
+  1:    { text: "For",      color: "#34d399" },
+};
+const LEANING_LABEL_KO: Record<number, { text: string; color: string }> = {
   [-1]: { text: "진보", color: "#34d399" },
   0:    { text: "중도", color: "#94a3b8" },
   1:    { text: "보수", color: "#f97316" },
+};
+const LEANING_LABEL_EN: Record<number, { text: string; color: string }> = {
+  [-1]: { text: "Progressive",  color: "#34d399" },
+  0:    { text: "Centrist",     color: "#94a3b8" },
+  1:    { text: "Conservative", color: "#f97316" },
 };
 
 // 알려진 이슈 ID 목록 (나중엔 온체인 레지스트리로 대체)
@@ -84,8 +97,9 @@ async function buildRatePoliticianTx(
   );
 }
 
-function ScoreDistribution({ scores, voteCount }: { scores: number[]; voteCount: number }) {
+function ScoreDistribution({ scores, voteCount, isEN }: { scores: number[]; voteCount: number; isEN: boolean }) {
   const total = voteCount || 1;
+  const labels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
   return (
     <div>
       <div className="flex rounded-full overflow-hidden h-3 w-full mb-3">
@@ -105,7 +119,7 @@ function ScoreDistribution({ scores, voteCount }: { scores: number[]; voteCount:
           <div key={i} className="flex flex-col items-center gap-0.5">
             <span className="text-base">{SCORE_EMOJI[i]}</span>
             <span className="text-xs font-bold" style={{ color: SCORE_COLORS[i] }}>{cnt}</span>
-            <span className="text-[9px] text-[var(--muted)] text-center leading-tight">{SCORE_LABELS[i]}</span>
+            <span className="text-[9px] text-[var(--muted)] text-center leading-tight">{labels[i]}</span>
           </div>
         ))}
       </div>
@@ -120,6 +134,11 @@ export default function PoliticianDetailPage({ params }: { params: { id: string 
   const { signTransaction } = useSignTransaction();
 
   const politicianId = params.id;
+  const isEN = EN_IDS.includes(politicianId);
+  const LEANING_LABEL = isEN ? LEANING_LABEL_EN : LEANING_LABEL_KO;
+  const STANCE_LABEL  = isEN ? STANCE_LABEL_EN  : STANCE_LABEL_KO;
+  const SCORE_LABELS  = isEN ? SCORE_LABELS_EN  : SCORE_LABELS_KO;
+
   const [politician, setPolitician] = useState<OnChainPolitician | null>(null);
   const [stances, setStances] = useState<PoliticianStance[]>([]);
   const [myScore, setMyScore] = useState<number | null>(null);
@@ -250,18 +269,22 @@ export default function PoliticianDetailPage({ params }: { params: { id: string 
         >
           <div className="flex items-end justify-between mb-4">
             <div>
-              <p className="text-[var(--muted)] text-xs mb-1">지지율 (KYC 인증 노드 기준)</p>
+              <p className="text-[var(--muted)] text-xs mb-1">
+                {isEN ? "Approval (KYC-verified nodes)" : "지지율 (KYC 인증 노드 기준)"}
+              </p>
               <p className="text-white font-bold text-4xl">
                 {politician.approvalRate}<span className="text-lg text-[var(--muted)]">%</span>
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[var(--muted)] text-xs">평균 점수</p>
+              <p className="text-[var(--muted)] text-xs">{isEN ? "Avg score" : "평균 점수"}</p>
               <p className="text-white font-bold text-2xl">{politician.avgScore.toFixed(2)}</p>
-              <p className="text-[var(--muted)] text-[10px]">{politician.voteCount.toLocaleString()}명 평가</p>
+              <p className="text-[var(--muted)] text-[10px]">
+                {politician.voteCount.toLocaleString()} {isEN ? "ratings" : "명 평가"}
+              </p>
             </div>
           </div>
-          <ScoreDistribution scores={politician.scores} voteCount={politician.voteCount} />
+          <ScoreDistribution scores={politician.scores} voteCount={politician.voteCount} isEN={isEN} />
         </motion.div>
 
         {/* 지지도 투표 */}
@@ -271,7 +294,9 @@ export default function PoliticianDetailPage({ params }: { params: { id: string 
           transition={{ delay: 0.05 }}
           className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl p-4"
         >
-          <p className="text-[var(--muted)] text-xs mb-3">이 정치인을 평가하세요 — 온체인 기록</p>
+          <p className="text-[var(--muted)] text-xs mb-3">
+            {isEN ? "Rate this politician — recorded on-chain" : "이 정치인을 평가하세요 — 온체인 기록"}
+          </p>
 
           {myScore !== null ? (
             <div className="flex flex-col items-center gap-2 py-2">
@@ -296,7 +321,9 @@ export default function PoliticianDetailPage({ params }: { params: { id: string 
               )}
             </div>
           ) : !authenticated ? (
-            <p className="text-[var(--muted)] text-sm text-center py-3">로그인 후 평가 가능</p>
+            <p className="text-[var(--muted)] text-sm text-center py-3">
+              {isEN ? "Sign in to rate" : "로그인 후 평가 가능"}
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-5 gap-1.5">
@@ -337,7 +364,9 @@ export default function PoliticianDetailPage({ params }: { params: { id: string 
             transition={{ delay: 0.1 }}
             className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl p-4"
           >
-            <p className="text-[var(--muted)] text-xs mb-3">안건별 공식 입장 (Admin 태깅)</p>
+            <p className="text-[var(--muted)] text-xs mb-3">
+              {isEN ? "Official stances by issue (Admin-tagged)" : "안건별 공식 입장 (Admin 태깅)"}
+            </p>
             {stances.map((s) => {
               const sl = STANCE_LABEL[s.stance] ?? STANCE_LABEL[0];
               return (
