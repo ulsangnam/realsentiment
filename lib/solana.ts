@@ -34,7 +34,7 @@ const RENT_BUFFER_LAMPORTS = 3_000_000; // 0.003 SOL
 export async function buildVoteTransaction(
   voterAddress: string,
   issueId: string,
-  support: boolean,
+  score: number,
   feePayerAddress?: string
 ): Promise<VersionedTransaction> {
   const voter = new PublicKey(voterAddress);
@@ -50,10 +50,10 @@ export async function buildVoteTransaction(
   const program = new Program(IDL as never, provider);
 
   const voteIx = await (program.methods as never as {
-    castVote: (issueId: string, support: boolean) => {
+    castVote: (issueId: string, score: number) => {
       accounts: (a: object) => { instruction: () => Promise<unknown> }
     }
-  }).castVote(issueId, support)
+  }).castVote(issueId, score)
     .accounts({ issue: issuePDA, voteRecord: votePDA, voter })
     .instruction();
 

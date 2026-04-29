@@ -9,9 +9,6 @@
   "instructions": [
     {
       "name": "cast_vote",
-      "docs": [
-        "Cast a vote — recorded permanently on-chain"
-      ],
       "discriminator": [
         20,
         212,
@@ -86,16 +83,13 @@
           "type": "string"
         },
         {
-          "name": "support",
-          "type": "bool"
+          "name": "score",
+          "type": "u8"
         }
       ]
     },
     {
       "name": "create_issue",
-      "docs": [
-        "Initialize a new poll issue on-chain"
-      ],
       "discriminator": [
         177,
         159,
@@ -155,6 +149,235 @@
         {
           "name": "expires_at",
           "type": "i64"
+        },
+        {
+          "name": "leaning",
+          "type": "i8"
+        }
+      ]
+    },
+    {
+      "name": "create_politician",
+      "discriminator": [
+        222,
+        108,
+        205,
+        47,
+        213,
+        37,
+        22,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "politician",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  105,
+                  116,
+                  105,
+                  99,
+                  105,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "politician_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "politician_id",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "party",
+          "type": "string"
+        },
+        {
+          "name": "role",
+          "type": "string"
+        },
+        {
+          "name": "leaning",
+          "type": "i8"
+        }
+      ]
+    },
+    {
+      "name": "rate_politician",
+      "discriminator": [
+        246,
+        189,
+        70,
+        11,
+        24,
+        60,
+        133,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "politician",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  105,
+                  116,
+                  105,
+                  99,
+                  105,
+                  97,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "politician_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vote_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  118,
+                  111,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "voter"
+              },
+              {
+                "kind": "arg",
+                "path": "politician_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "voter",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "politician_id",
+          "type": "string"
+        },
+        {
+          "name": "score",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "set_politician_stance",
+      "discriminator": [
+        181,
+        107,
+        176,
+        122,
+        173,
+        153,
+        31,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "stance",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  110,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "politician_id"
+              },
+              {
+                "kind": "arg",
+                "path": "issue_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "politician_id",
+          "type": "string"
+        },
+        {
+          "name": "issue_id",
+          "type": "string"
+        },
+        {
+          "name": "stance",
+          "type": "i8"
         }
       ]
     }
@@ -171,6 +394,45 @@
         128,
         32,
         63
+      ]
+    },
+    {
+      "name": "PoliticianAccount",
+      "discriminator": [
+        240,
+        196,
+        109,
+        42,
+        107,
+        57,
+        214,
+        149
+      ]
+    },
+    {
+      "name": "PoliticianStance",
+      "discriminator": [
+        69,
+        6,
+        210,
+        129,
+        179,
+        30,
+        132,
+        75
+      ]
+    },
+    {
+      "name": "PoliticianVoteRecord",
+      "discriminator": [
+        26,
+        25,
+        177,
+        204,
+        217,
+        107,
+        213,
+        134
       ]
     },
     {
@@ -202,6 +464,45 @@
       ]
     },
     {
+      "name": "PoliticianCreated",
+      "discriminator": [
+        25,
+        36,
+        138,
+        22,
+        110,
+        173,
+        21,
+        24
+      ]
+    },
+    {
+      "name": "PoliticianRated",
+      "discriminator": [
+        74,
+        238,
+        223,
+        183,
+        38,
+        199,
+        136,
+        1
+      ]
+    },
+    {
+      "name": "StanceSet",
+      "discriminator": [
+        204,
+        8,
+        219,
+        156,
+        155,
+        8,
+        55,
+        50
+      ]
+    },
+    {
       "name": "VoteCast",
       "discriminator": [
         39,
@@ -230,6 +531,11 @@
       "code": 6002,
       "name": "AlreadyVoted",
       "msg": "You have already voted on this issue"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidScore",
+      "msg": "Score must be between 1 and 5"
     }
   ],
   "types": [
@@ -255,11 +561,27 @@
             "type": "pubkey"
           },
           {
-            "name": "yes_count",
+            "name": "score_1",
             "type": "u64"
           },
           {
-            "name": "no_count",
+            "name": "score_2",
+            "type": "u64"
+          },
+          {
+            "name": "score_3",
+            "type": "u64"
+          },
+          {
+            "name": "score_4",
+            "type": "u64"
+          },
+          {
+            "name": "score_5",
+            "type": "u64"
+          },
+          {
+            "name": "vote_count",
             "type": "u64"
           },
           {
@@ -269,6 +591,10 @@
           {
             "name": "expires_at",
             "type": "i64"
+          },
+          {
+            "name": "leaning",
+            "type": "i8"
           },
           {
             "name": "bump",
@@ -297,6 +623,210 @@
           {
             "name": "expires_at",
             "type": "i64"
+          },
+          {
+            "name": "leaning",
+            "type": "i8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoliticianAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "party",
+            "type": "string"
+          },
+          {
+            "name": "role",
+            "type": "string"
+          },
+          {
+            "name": "leaning",
+            "type": "i8"
+          },
+          {
+            "name": "score_1",
+            "type": "u64"
+          },
+          {
+            "name": "score_2",
+            "type": "u64"
+          },
+          {
+            "name": "score_3",
+            "type": "u64"
+          },
+          {
+            "name": "score_4",
+            "type": "u64"
+          },
+          {
+            "name": "score_5",
+            "type": "u64"
+          },
+          {
+            "name": "vote_count",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoliticianCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "party",
+            "type": "string"
+          },
+          {
+            "name": "leaning",
+            "type": "i8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoliticianRated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "score",
+            "type": "u8"
+          },
+          {
+            "name": "vote_count",
+            "type": "u64"
+          },
+          {
+            "name": "avg_score_x100",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoliticianStance",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "issue_id",
+            "type": "string"
+          },
+          {
+            "name": "stance",
+            "type": "i8"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoliticianVoteRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "voter",
+            "type": "pubkey"
+          },
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "score",
+            "type": "u8"
+          },
+          {
+            "name": "voted_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "StanceSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "politician_id",
+            "type": "string"
+          },
+          {
+            "name": "issue_id",
+            "type": "string"
+          },
+          {
+            "name": "stance",
+            "type": "i8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -315,15 +845,15 @@
             "type": "string"
           },
           {
-            "name": "support",
-            "type": "bool"
+            "name": "score",
+            "type": "u8"
           },
           {
-            "name": "yes_total",
+            "name": "vote_count",
             "type": "u64"
           },
           {
-            "name": "no_total",
+            "name": "avg_score_x100",
             "type": "u64"
           },
           {
@@ -347,8 +877,8 @@
             "type": "string"
           },
           {
-            "name": "support",
-            "type": "bool"
+            "name": "score",
+            "type": "u8"
           },
           {
             "name": "voted_at",

@@ -26,7 +26,7 @@ export type SBT = {
 
 export const MOCK_ISSUES: Issue[] = [
   {
-    id: "en-1",
+    id: "e1",
     title: "Should AI-generated content require mandatory labeling?",
     summary: "Should governments legally require watermarks or labels on all AI-generated images and text to prevent misinformation?",
     category: "Tech & AI",
@@ -48,7 +48,7 @@ export const MOCK_ISSUES: Issue[] = [
     expiresIn: "2d 14h",
   },
   {
-    id: "en-2",
+    id: "e2",
     title: "Should the US adopt a 4-day work week?",
     summary: "Should Congress pass legislation mandating companies to pilot a 4-day work week without reducing employee pay?",
     category: "Labor & Economy",
@@ -70,7 +70,7 @@ export const MOCK_ISSUES: Issue[] = [
     expiresIn: "5d 3h",
   },
   {
-    id: "en-3",
+    id: "e3",
     title: "Should crypto gains be taxed as regular income?",
     summary: "Should Bitcoin, Ethereum, and NFT profits be taxed at the same rate as ordinary income rather than capital gains rates?",
     category: "Finance & Tax",
@@ -92,7 +92,7 @@ export const MOCK_ISSUES: Issue[] = [
     expiresIn: "1d 7h",
   },
   {
-    id: "en-4",
+    id: "e4",
     title: "Should nuclear power plants get 10-year life extensions?",
     summary: "Should aging nuclear power plants be granted 10-year operational extensions as a bridge to renewable energy targets?",
     category: "Energy & Climate",
@@ -114,7 +114,7 @@ export const MOCK_ISSUES: Issue[] = [
     expiresIn: "3d 20h",
   },
   {
-    id: "ko-1",
+    id: "k1",
     title: "AI 생성 콘텐츠 라벨 의무화",
     summary: "AI가 생성한 이미지·텍스트에 워터마크 또는 라벨 표시를 법적으로 의무화해야 하는가?",
     category: "기술·AI",
@@ -136,7 +136,7 @@ export const MOCK_ISSUES: Issue[] = [
     expiresIn: "2일 14시간",
   },
   {
-    id: "ko-2",
+    id: "k2",
     title: "주 4일 근무제 도입",
     summary: "기업들이 생산성 저하 없이 주 4일 근무제를 의무적으로 시범 도입해야 하는가?",
     category: "노동·경제",

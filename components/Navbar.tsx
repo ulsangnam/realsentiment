@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Vote, Trophy, Home } from "lucide-react";
+import { Vote, Trophy, Home, Landmark } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const links = [
   { href: "/", icon: Home, en: "Home", ko: "홈" },
   { href: "/vote", icon: Vote, en: "Vote", ko: "투표" },
+  { href: "/politicians", icon: Landmark, en: "Polls", ko: "정치인" },
   { href: "/rewards", icon: Trophy, en: "Rewards", ko: "보상" },
 ];
 
