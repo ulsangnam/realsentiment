@@ -190,6 +190,7 @@ export default function VotePage() {
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
   const [guideOpen, setGuideOpen] = useState(false);
+  const [showVoted, setShowVoted] = useState(false);
 
   const { authenticated, login, user, linkPhone } = usePrivy();
   const hasPhone = user?.linkedAccounts?.some((a) => a.type === "phone") ?? false;
@@ -287,6 +288,8 @@ export default function VotePage() {
   const filtered = filter === "All" || filter === "전체"
     ? issues
     : issues.filter((i) => i.category === filter);
+  const toVote = filtered.filter((i) => (votes[i.id] ?? null) === null);
+  const alreadyVoted = filtered.filter((i) => (votes[i.id] ?? null) !== null);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -398,25 +401,83 @@ export default function VotePage() {
             </p>
           </div>
         ) : (
-          <AnimatePresence>
-            {filtered.map((issue) => (
-              <VoteCard
-                key={issue.id}
-                issue={issue}
-                voted={votes[issue.id] ?? null}
-                walletReady={walletReady}
-                voterAddress={activeWallet?.address ?? null}
-                onChainVote={onChainVote}
-                onVoteDone={(id, score) => {
-                  setVotes((prev) => ({ ...prev, [id]: score }));
-                  setTotalEarned((prev) => prev + 10);
-                }}
-                onAlreadyVoted={(id, score) => {
-                  setVotes((prev) => ({ ...prev, [id]: score }));
-                }}
-              />
-            ))}
-          </AnimatePresence>
+          <>
+            {/* 미투표 안건 */}
+            {toVote.length === 0 && alreadyVoted.length > 0 && (
+              <div className="flex flex-col items-center py-12 gap-2 text-center">
+                <p className="text-3xl">🎉</p>
+                <p className="text-white font-bold text-base">
+                  {lang === "en" ? "All votes cast!" : "모든 안건 투표 완료!"}
+                </p>
+                <p className="text-[var(--muted)] text-xs">
+                  {lang === "en" ? "Check back tomorrow for new issues." : "내일 새 안건이 올라와요."}
+                </p>
+              </div>
+            )}
+            <AnimatePresence>
+              {toVote.map((issue) => (
+                <VoteCard
+                  key={issue.id}
+                  issue={issue}
+                  voted={null}
+                  walletReady={walletReady}
+                  voterAddress={activeWallet?.address ?? null}
+                  onChainVote={onChainVote}
+                  onVoteDone={(id, score) => {
+                    setVotes((prev) => ({ ...prev, [id]: score }));
+                    setTotalEarned((prev) => prev + 10);
+                  }}
+                  onAlreadyVoted={(id, score) => {
+                    setVotes((prev) => ({ ...prev, [id]: score }));
+                  }}
+                />
+              ))}
+            </AnimatePresence>
+
+            {/* 기투표 안건 — 접힌 섹션 */}
+            {alreadyVoted.length > 0 && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setShowVoted((v) => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[var(--muted)] text-xs font-medium hover:text-white transition-colors"
+                >
+                  <span>
+                    {lang === "en"
+                      ? `✓ Already voted (${alreadyVoted.length})`
+                      : `✓ 투표 완료 (${alreadyVoted.length}개)`}
+                  </span>
+                  <span className="text-[10px]">{showVoted ? "▲" : "▼"}</span>
+                </button>
+                <AnimatePresence>
+                  {showVoted && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3 mt-2 overflow-hidden"
+                    >
+                      {alreadyVoted.map((issue) => (
+                        <VoteCard
+                          key={issue.id}
+                          issue={issue}
+                          voted={votes[issue.id] ?? null}
+                          walletReady={walletReady}
+                          voterAddress={activeWallet?.address ?? null}
+                          onChainVote={onChainVote}
+                          onVoteDone={(id, score) => {
+                            setVotes((prev) => ({ ...prev, [id]: score }));
+                          }}
+                          onAlreadyVoted={(id, score) => {
+                            setVotes((prev) => ({ ...prev, [id]: score }));
+                          }}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+          </>
         )}
       </div>
 
