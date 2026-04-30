@@ -10,7 +10,7 @@ import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react
 import Navbar from "@/components/Navbar";
 import VerifyGuideModal from "@/components/VerifyGuideModal";
 import { buildVoteTransaction } from "@/lib/solana";
-import { fetchVoterHistory } from "@/lib/queries";
+import { fetchVoterHistory, fetchIssueVoteRecord } from "@/lib/queries";
 import type { DbIssue } from "@/lib/supabase";
 
 const SCORE_LABELS_KO = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
@@ -40,26 +40,39 @@ function VoteCard({
   walletReady: boolean;
   onChainVote: (issueId: string, score: number) => Promise<string | null>;
   onVoteDone: (id: string, score: number) => void;
+  onAlreadyVoted: (id: string) => void;
 }) {
   const [txSig, setTxSig] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localVoted, setLocalVoted] = useState<number | null>(voted);
+
+  // sync prop → local (for when parent pre-loads history)
+  useEffect(() => { setLocalVoted(voted); }, [voted]);
 
   const isEN = issue.lang === "en";
   const scoreLabels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
-  const votedColor = voted !== null ? SCORE_COLORS[voted - 1] : "#94a3b8";
-  const votedLabel = voted !== null ? scoreLabels[voted - 1] : null;
+  const votedColor = localVoted !== null ? SCORE_COLORS[localVoted - 1] : "#94a3b8";
+  const votedLabel = localVoted !== null ? scoreLabels[localVoted - 1] : null;
 
   async function handleVote(score: number) {
-    if (voted !== null || !walletReady) return;
+    if (localVoted !== null || !walletReady) return;
     setLoading(true);
     setError(null);
     try {
       const sig = await onChainVote(issue.id, score);
       if (sig) setTxSig(sig);
+      setLocalVoted(score);
       onVoteDone(issue.id, score);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      // "already in use" = VoteRecord PDA exists → already voted
+      if (msg.includes("already in use") || msg.includes("0x0")) {
+        setLocalVoted(score); // optimistic: show what they tried to vote
+        onAlreadyVoted(issue.id);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -89,7 +102,7 @@ function VoteCard({
 
       {/* vote section */}
       <div className="p-3 border-t border-[var(--card-border)]">
-        {voted !== null ? (
+        {localVoted !== null ? (
           <div className="flex flex-col items-center gap-2 py-1">
             <div className="flex items-center gap-2">
               <span
@@ -355,6 +368,12 @@ export default function VotePage() {
                 onVoteDone={(id, score) => {
                   setVotes((prev) => ({ ...prev, [id]: score }));
                   setTotalEarned((prev) => prev + 10);
+                }}
+                onAlreadyVoted={async (id) => {
+                  const wallet = activeWallet;
+                  if (!wallet) return;
+                  const s = await fetchIssueVoteRecord(wallet.address, id);
+                  if (s) setVotes((prev) => ({ ...prev, [id]: s }));
                 }}
               />
             ))}
