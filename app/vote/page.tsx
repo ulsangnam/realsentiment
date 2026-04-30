@@ -4,185 +4,18 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Coins, Shield, ExternalLink, Phone } from "lucide-react";
+import { Coins, Shield, Phone } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import VerifyGuideModal from "@/components/VerifyGuideModal";
 import { buildVoteTransaction } from "@/lib/solana";
-import { fetchVoterHistory, fetchIssueVoteRecord } from "@/lib/queries";
+import { fetchVoterHistory } from "@/lib/queries";
 import type { DbIssue } from "@/lib/supabase";
-
-const SCORE_LABELS_KO = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
-const SCORE_LABELS_EN = ["Strongly\nOppose", "Oppose", "Neutral", "Support", "Strongly\nSupport"];
-const SCORE_COLORS = ["#ef4444", "#f97316", "#94a3b8", "#34d399", "#10b981"];
+// STRUCTURAL CHANGE: VoteCard extracted to ./VoteCard.tsx to keep both files under 500 lines
+import VoteCard from "./VoteCard";
 
 type VoteState = Record<string, number | null>;
-
-function expiresInText(expiresAt: string, lang: "en" | "ko"): string {
-  const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return lang === "en" ? "Expired" : "만료됨";
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor((diff % 86400000) / 3600000);
-  if (days > 0) return lang === "en" ? `${days}d ${hours}h` : `${days}일 ${hours}시간`;
-  return lang === "en" ? `${hours}h` : `${hours}시간`;
-}
-
-function VoteCard({
-  issue,
-  voted,
-  walletReady,
-  onChainVote,
-  onVoteDone,
-}: {
-  issue: DbIssue;
-  voted: number | null;
-  walletReady: boolean;
-  voterAddress: string | null;
-  onChainVote: (issueId: string, score: number) => Promise<string | null>;
-  onVoteDone: (id: string, score: number) => void;
-  onAlreadyVoted: (id: string, score: number) => void;
-}) {
-  const [txSig, setTxSig] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [localVoted, setLocalVoted] = useState<number | null>(voted);
-
-  // sync prop → local; clear stale error when history confirms vote
-  useEffect(() => {
-    setLocalVoted(voted);
-    if (voted !== null) setError(null);
-  }, [voted]);
-
-  const isEN = issue.lang === "en";
-  const scoreLabels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
-  const votedColor = localVoted !== null ? SCORE_COLORS[localVoted - 1] : "#94a3b8";
-  const votedLabel = localVoted !== null ? scoreLabels[localVoted - 1] : null;
-
-  async function handleVote(score: number) {
-    if (localVoted !== null || !walletReady) return;
-    setLoading(true);
-    setError(null);
-    try {
-      // Pre-check: VoteRecord already on chain?
-      if (voterAddress) {
-        const existing = await fetchIssueVoteRecord(voterAddress, issue.id);
-        if (existing !== null) {
-          setLocalVoted(existing);
-          onAlreadyVoted(issue.id, existing);
-          return;
-        }
-      }
-      const sig = await onChainVote(issue.id, score);
-      if (sig) setTxSig(sig);
-      setLocalVoted(score);
-      onVoteDone(issue.id, score);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("already in use") || msg.includes("0x0")) {
-        // fallback: couldn't pre-check, treat as already voted
-        setLocalVoted(score);
-        onAlreadyVoted(issue.id, score);
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-[var(--card)] border border-[var(--card-border)] rounded-2xl overflow-hidden"
-    >
-      {/* header */}
-      <div className="p-4 pb-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium bg-indigo-900/50 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-800/50">
-            {isEN ? "🇺🇸" : "🇰🇷"} {issue.category}
-          </span>
-          <div className="flex items-center gap-1 text-[var(--muted)] text-xs">
-            <Clock size={12} />
-            {expiresInText(issue.expires_at, issue.lang)} {isEN ? "left" : "남음"}
-          </div>
-        </div>
-        <h3 className="text-white font-bold text-base leading-snug mb-1">{issue.title}</h3>
-        <p className="text-[var(--muted)] text-xs leading-relaxed line-clamp-2">{issue.summary}</p>
-      </div>
-
-      {/* vote section */}
-      <div className="p-3 border-t border-[var(--card-border)]">
-        {localVoted !== null ? (
-          <div className="flex flex-col items-center gap-2 py-1">
-            <div className="flex items-center gap-2">
-              <span
-                className="text-sm font-bold px-3 py-1 rounded-full border"
-                style={{ color: votedColor, borderColor: votedColor + "50", background: votedColor + "15" }}
-              >
-                {votedLabel}
-              </span>
-              <div className="flex items-center gap-1">
-                <Coins size={14} className="text-yellow-400" />
-                <span className="text-yellow-400 font-semibold text-sm">+10 VTX</span>
-              </div>
-            </div>
-            {loading && (
-              <p className="text-indigo-400 text-xs flex items-center gap-1">
-                <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                {isEN ? "Recording on Solana..." : "솔라나 기록 중..."}
-              </p>
-            )}
-            {txSig && (
-              <a
-                href={`https://solscan.io/tx/${txSig}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
-              >
-                <ExternalLink size={11} />
-                View on Solscan
-              </a>
-            )}
-            {error && !txSig && (
-              <p className="text-rose-400 text-[10px] max-w-[240px] break-all">⚠ {error}</p>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-5 gap-1.5">
-            {!walletReady && (
-              <div className="col-span-5 flex justify-center py-2">
-                <span className="w-4 h-4 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
-            {error && (
-              <p className="col-span-5 text-rose-400 text-[10px] text-center break-all">⚠ {error}</p>
-            )}
-            {walletReady && [1, 2, 3, 4, 5].map((score) => (
-              <motion.button
-                key={score}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => handleVote(score)}
-                disabled={loading}
-                className="flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all text-[10px] font-bold leading-tight disabled:opacity-50"
-                style={{
-                  color: SCORE_COLORS[score - 1],
-                  borderColor: SCORE_COLORS[score - 1] + "50",
-                  background: SCORE_COLORS[score - 1] + "12",
-                }}
-              >
-                <span className="text-base">{["😡", "🙁", "😐", "🙂", "😊"][score - 1]}</span>
-                <span className="text-center whitespace-pre-line">{scoreLabels[score - 1]}</span>
-              </motion.button>
-            ))}
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
 
 export default function VotePage() {
   const [issues, setIssues] = useState<DbIssue[]>([]);
@@ -195,11 +28,16 @@ export default function VotePage() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [showVoted, setShowVoted] = useState(false);
 
+  // --- Revision tracking: which issues were revised today (per wallet) ---
+  const [revisedToday, setRevisedToday] = useState<Set<string>>(new Set());
+
   const { authenticated, login, user, linkPhone } = usePrivy();
   const hasPhone = user?.linkedAccounts?.some((a) => a.type === "phone") ?? false;
   const { wallets, ready: walletsReady } = useWallets();
   const { signTransaction } = useSignTransaction();
   const { createWallet } = useCreateWallet();
+
+  const isKo = lang === "ko";
 
   const privyWallet = wallets.find(
     (w) => ("walletClientType" in w && (w as Record<string, unknown>).walletClientType === "privy") ||
@@ -256,6 +94,17 @@ export default function VotePage() {
       .finally(() => setHistoryLoading(false));
   }, [activeWallet?.address]);
 
+  // Load which issues were revised today from localStorage (resets each calendar day)
+  useEffect(() => {
+    if (!activeWallet?.address) return;
+    const today = new Date().toDateString();
+    const key = `rs_revised_${activeWallet.address}_${today}`;
+    try {
+      const stored = JSON.parse(localStorage.getItem(key) ?? "[]") as string[];
+      setRevisedToday(new Set(stored));
+    } catch {}
+  }, [activeWallet?.address]);
+
   // Fetch issues from DB when lang changes
   useEffect(() => {
     setIssuesLoading(true);
@@ -266,6 +115,10 @@ export default function VotePage() {
       .finally(() => setIssuesLoading(false));
   }, [lang]);
 
+  /**
+   * Submits an on-chain vote transaction via Privy wallet signing.
+   * @returns Transaction signature string, or null on failure
+   */
   async function onChainVote(issueId: string, score: number): Promise<string | null> {
     const wallet = activeWallet;
     if (!wallet) throw new Error(`no wallet (ready=${walletsReady}, count=${wallets.length})`);
@@ -288,6 +141,39 @@ export default function VotePage() {
     return data.signature as string;
   }
 
+  /**
+   * Posts a vote revision to /api/revise-vote and updates local state on success.
+   * Persists revised issue IDs to localStorage so the UI is consistent after refresh.
+   *
+   * @throws Error with user-facing message on daily_limit or API failure
+   */
+  async function handleReviseVote(issueId: string, oldScore: number, newScore: number) {
+    if (!activeWallet) throw new Error("no wallet");
+    const res = await fetch("/api/revise-vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletAddress: activeWallet.address, issueId, oldScore, newScore }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.error === "daily_limit") {
+        throw new Error(isKo ? "오늘 이미 수정했어요" : "Already revised today");
+      }
+      throw new Error(data.error ?? "failed");
+    }
+    // Update parent vote state so the score badge reflects the new value immediately
+    setVotes((prev) => ({ ...prev, [issueId]: newScore }));
+    // Persist revised set to localStorage so it survives a page refresh today
+    setRevisedToday((prev) => {
+      const next = new Set(prev);
+      next.add(issueId);
+      const today = new Date().toDateString();
+      const key = `rs_revised_${activeWallet.address}_${today}`;
+      localStorage.setItem(key, JSON.stringify([...next]));
+      return next;
+    });
+  }
+
   function switchLang(l: "en" | "ko") {
     setLang(l);
     setFilter(l === "en" ? "All" : "전체");
@@ -303,8 +189,19 @@ export default function VotePage() {
   const toVote = filtered.filter((i) => (votes[i.id] ?? null) === null);
   const alreadyVoted = filtered.filter((i) => (votes[i.id] ?? null) !== null);
 
+  // Shared VoteCard prop factory to avoid repetition
+  const cardProps = (issue: DbIssue) => ({
+    issue,
+    walletReady,
+    voterAddress: activeWallet?.address ?? null,
+    canModify: !revisedToday.has(issue.id),
+    onChainVote,
+    onReviseVote: handleReviseVote,
+  });
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
+      {/* --- Sticky Header --- */}
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
@@ -378,8 +275,10 @@ export default function VotePage() {
         </div>
       </div>
 
+      {/* --- Main Content --- */}
       <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4">
         {authenticated && !hasPhone ? (
+          // Phone verification required gate
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <div className="w-16 h-16 rounded-full bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
               <Phone size={28} className="text-indigo-400" />
@@ -414,7 +313,7 @@ export default function VotePage() {
           </div>
         ) : (
           <>
-            {/* 미투표 안건 */}
+            {/* All-done banner */}
             {toVote.length === 0 && alreadyVoted.length > 0 && (
               <div className="flex flex-col items-center py-12 gap-2 text-center">
                 <p className="text-3xl">🎉</p>
@@ -426,15 +325,14 @@ export default function VotePage() {
                 </p>
               </div>
             )}
+
+            {/* 미투표 안건 */}
             <AnimatePresence>
               {toVote.map((issue) => (
                 <VoteCard
                   key={issue.id}
-                  issue={issue}
+                  {...cardProps(issue)}
                   voted={null}
-                  walletReady={walletReady}
-                  voterAddress={activeWallet?.address ?? null}
-                  onChainVote={onChainVote}
                   onVoteDone={(id, score) => {
                     setVotes((prev) => {
                       const next = { ...prev, [id]: score };
@@ -479,17 +377,10 @@ export default function VotePage() {
                       {alreadyVoted.map((issue) => (
                         <VoteCard
                           key={issue.id}
-                          issue={issue}
+                          {...cardProps(issue)}
                           voted={votes[issue.id] ?? null}
-                          walletReady={walletReady}
-                          voterAddress={activeWallet?.address ?? null}
-                          onChainVote={onChainVote}
-                          onVoteDone={(id, score) => {
-                            setVotes((prev) => ({ ...prev, [id]: score }));
-                          }}
-                          onAlreadyVoted={(id, score) => {
-                            setVotes((prev) => ({ ...prev, [id]: score }));
-                          }}
+                          onVoteDone={(id, score) => setVotes((prev) => ({ ...prev, [id]: score }))}
+                          onAlreadyVoted={(id, score) => setVotes((prev) => ({ ...prev, [id]: score }))}
                         />
                       ))}
                     </motion.div>

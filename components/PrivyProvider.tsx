@@ -19,7 +19,7 @@ export default function PrivyProvider({ children }: { children: React.ReactNode 
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmohyjthv00h40cl202regp7o"}
       config={{
         appearance: { theme: "dark", accentColor: "#6366f1" },
-        loginMethods: ["google", "email", "sms"],
+        loginMethods: ["google"],
         embeddedWallets: {
           solana: { createOnLogin: "users-without-wallets" },
         },
