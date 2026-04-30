@@ -9,6 +9,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
 import { buildVoteTransaction } from "@/lib/solana";
+import { fetchVoterHistory } from "@/lib/queries";
 import type { DbIssue } from "@/lib/supabase";
 
 const SCORE_LABELS_KO = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
@@ -29,11 +30,13 @@ function expiresInText(expiresAt: string, lang: "en" | "ko"): string {
 function VoteCard({
   issue,
   voted,
+  walletReady,
   onChainVote,
   onVoteDone,
 }: {
   issue: DbIssue;
   voted: number | null;
+  walletReady: boolean;
   onChainVote: (issueId: string, score: number) => Promise<string | null>;
   onVoteDone: (id: string, score: number) => void;
 }) {
@@ -47,7 +50,7 @@ function VoteCard({
   const votedLabel = voted !== null ? scoreLabels[voted - 1] : null;
 
   async function handleVote(score: number) {
-    if (voted !== null) return;
+    if (voted !== null || !walletReady) return;
     setLoading(true);
     setError(null);
     try {
@@ -122,7 +125,12 @@ function VoteCard({
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-1.5">
-            {[1, 2, 3, 4, 5].map((score) => (
+            {!walletReady && (
+              <div className="col-span-5 flex justify-center py-2">
+                <span className="w-4 h-4 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {walletReady && [1, 2, 3, 4, 5].map((score) => (
               <motion.button
                 key={score}
                 whileTap={{ scale: 0.92 }}
@@ -150,6 +158,7 @@ export default function VotePage() {
   const [issues, setIssues] = useState<DbIssue[]>([]);
   const [issuesLoading, setIssuesLoading] = useState(true);
   const [votes, setVotes] = useState<VoteState>({});
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [totalEarned, setTotalEarned] = useState(50);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
@@ -163,6 +172,9 @@ export default function VotePage() {
     (w) => ("walletClientType" in w && (w as Record<string, unknown>).walletClientType === "privy") ||
            ("name" in w && String((w as Record<string, unknown>).name).toLowerCase().includes("privy"))
   ) ?? null;
+  const activeWallet = privyWallet ?? wallets[0] ?? null;
+  // Ready = wallets have loaded AND we either have a wallet or confirmed there isn't one
+  const walletReady = walletsReady && !historyLoading;
 
   // Restore lang from localStorage
   useEffect(() => {
@@ -188,6 +200,20 @@ export default function VotePage() {
     }
   }, [authenticated, walletsReady, wallets.length]);
 
+  // Load existing vote records so already-voted issues show correctly
+  useEffect(() => {
+    if (!activeWallet) return;
+    setHistoryLoading(true);
+    fetchVoterHistory(activeWallet.address)
+      .then((history) => {
+        const map: VoteState = {};
+        for (const h of history) map[h.issueId] = h.score;
+        setVotes((prev) => ({ ...map, ...prev })); // prev wins if just voted this session
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [activeWallet?.address]);
+
   // Fetch issues from DB when lang changes
   useEffect(() => {
     setIssuesLoading(true);
@@ -199,7 +225,7 @@ export default function VotePage() {
   }, [lang]);
 
   async function onChainVote(issueId: string, score: number): Promise<string | null> {
-    const wallet = privyWallet ?? wallets[0] ?? null;
+    const wallet = activeWallet;
     if (!wallet) throw new Error(`no wallet (ready=${walletsReady}, count=${wallets.length})`);
     const feePayerAddress = process.env.NEXT_PUBLIC_FEE_PAYER;
     const tx = await buildVoteTransaction(wallet.address, issueId, score, feePayerAddress);
@@ -316,6 +342,7 @@ export default function VotePage() {
                 key={issue.id}
                 issue={issue}
                 voted={votes[issue.id] ?? null}
+                walletReady={walletReady}
                 onChainVote={onChainVote}
                 onVoteDone={(id, score) => {
                   setVotes((prev) => ({ ...prev, [id]: score }));
