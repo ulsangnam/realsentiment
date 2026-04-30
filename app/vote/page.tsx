@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Coins, Shield, ExternalLink } from "lucide-react";
+import { Clock, Coins, Shield, ExternalLink, Phone } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
@@ -191,7 +191,8 @@ export default function VotePage() {
   const [filter, setFilter] = useState("All");
   const [guideOpen, setGuideOpen] = useState(false);
 
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login, user, linkPhone } = usePrivy();
+  const hasPhone = user?.linkedAccounts?.some((a) => a.type === "phone") ?? false;
   const { wallets, ready: walletsReady } = useWallets();
   const { signTransaction } = useSignTransaction();
   const { createWallet } = useCreateWallet();
@@ -324,16 +325,21 @@ export default function VotePage() {
         </div>
 
         <div className="px-4 pb-2">
-          {authenticated ? (
-            <p className="text-emerald-400 text-xs flex items-center gap-1">
-              <Shield size={12} />
-              {lang === "en" ? "Verified — votes recorded on Solana" : "인증됨 — 솔라나에 기록"}
-            </p>
-          ) : (
+          {!authenticated ? (
             <button onClick={login} className="text-indigo-400 text-xs flex items-center gap-1 hover:text-indigo-300 transition-colors">
               <Shield size={12} />
               {lang === "en" ? "Sign in to record votes on-chain" : "로그인 후 온체인 기록"}
             </button>
+          ) : !hasPhone ? (
+            <p className="text-amber-400 text-xs flex items-center gap-1">
+              <Phone size={12} />
+              {lang === "en" ? "Phone verification required to vote" : "투표하려면 전화번호 인증 필요"}
+            </p>
+          ) : (
+            <p className="text-emerald-400 text-xs flex items-center gap-1">
+              <Shield size={12} />
+              {lang === "en" ? "Verified — votes recorded on Solana" : "인증됨 — 솔라나에 기록"}
+            </p>
           )}
         </div>
 
@@ -358,7 +364,29 @@ export default function VotePage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4">
-        {issuesLoading ? (
+        {authenticated && !hasPhone ? (
+          <div className="flex flex-col items-center gap-4 py-20 text-center">
+            <div className="w-16 h-16 rounded-full bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+              <Phone size={28} className="text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-base mb-1">
+                {lang === "en" ? "Phone verification required" : "전화번호 인증 필요"}
+              </p>
+              <p className="text-[var(--muted)] text-sm max-w-[260px]">
+                {lang === "en"
+                  ? "To prevent duplicate voting, one phone number per account is required."
+                  : "중복 투표 방지를 위해 계정당 전화번호 1개 인증이 필요해요."}
+              </p>
+            </div>
+            <button
+              onClick={() => linkPhone()}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all text-sm"
+            >
+              {lang === "en" ? "Verify phone number" : "전화번호 인증하기"}
+            </button>
+          </div>
+        ) : issuesLoading ? (
           <div className="flex justify-center py-24">
             <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
           </div>
