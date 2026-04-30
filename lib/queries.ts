@@ -1,7 +1,7 @@
 import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
 import IDL from "./idl.json";
-import { getIssuePDA, PROGRAM_ID } from "./solana";
+import { getIssuePDA, getVotePDA, PROGRAM_ID } from "./solana";
 
 const CONNECTION = new Connection(clusterApiUrl("devnet"), "confirmed");
 
@@ -114,12 +114,11 @@ export async function fetchVoterHistory(walletAddress: string): Promise<VoterHis
 // Returns the score (1-5) if voter already voted on this issue, else null
 export async function fetchIssueVoteRecord(voterAddress: string, issueId: string): Promise<number | null> {
   try {
-    const { getVotePDA } = await import("./solana");
     const voter = new PublicKey(voterAddress);
     const pda = getVotePDA(voter, issueId);
     const info = await CONNECTION.getAccountInfo(pda);
     if (!info) return null;
-    const data = info.data;
+    const data = Buffer.from(info.data);
     // discriminator(8) + voter(32) + issueId_len(4) + issueId(?) + score(1)
     const idLen = data.readUInt32LE(40);
     const score = data[44 + idLen];
