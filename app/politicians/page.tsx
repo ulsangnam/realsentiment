@@ -6,10 +6,7 @@ import { useRouter } from "next/navigation";
 import { Users, TrendingUp, ExternalLink } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { fetchAllPoliticians, type OnChainPolitician } from "@/lib/queries";
-
-// Politician IDs by language region
-const KO_IDS = ["yoon-sy", "moon-ji", "lee-jm", "cho-guk"];
-const EN_IDS  = ["trump", "biden", "harris", "sanders"];
+import type { DbPolitician } from "@/lib/supabase";
 
 const LEANING: Record<string, Record<number, { text: string; color: string }>> = {
   en: {
@@ -87,6 +84,7 @@ function PoliticianCard({ politician, lang }: { politician: OnChainPolitician; l
 
 export default function PoliticiansPage() {
   const [all, setAll] = useState<OnChainPolitician[]>([]);
+  const [dbIds, setDbIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
@@ -108,9 +106,18 @@ export default function PoliticiansPage() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Fetch DB politician IDs for this lang + on-chain vote data
   useEffect(() => {
-    fetchAllPoliticians().then(setAll).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/politicians?lang=${lang}`).then((r) => r.json()).catch(() => []),
+      fetchAllPoliticians(),
+    ]).then(([dbData, onChain]) => {
+      const ids = (dbData as DbPolitician[]).map((p) => p.id);
+      setDbIds(ids);
+      setAll(onChain);
+    }).finally(() => setLoading(false));
+  }, [lang]);
 
   function switchLang(l: "en" | "ko") {
     setLang(l);
@@ -119,11 +126,10 @@ export default function PoliticiansPage() {
     window.dispatchEvent(new StorageEvent("storage", { key: "rs_lang", newValue: l }));
   }
 
-  const allowedIds = lang === "en" ? EN_IDS : KO_IDS;
   const leaningMap = LEANING[lang];
   const filters = FILTERS[lang];
 
-  const byLang = all.filter((p) => allowedIds.includes(p.politicianId));
+  const byLang = all.filter((p) => dbIds.includes(p.politicianId));
   const filtered = (filter === "All" || filter === "전체")
     ? byLang
     : byLang.filter((p) => (leaningMap[p.leaning]?.text ?? "") === filter);

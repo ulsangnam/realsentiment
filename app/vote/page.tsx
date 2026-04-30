@@ -4,86 +4,62 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Clock, Users, Coins, Shield, ExternalLink } from "lucide-react";
+import { Clock, Coins, Shield, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
-import { MOCK_ISSUES, type Issue } from "@/lib/mockData";
 import { buildVoteTransaction } from "@/lib/solana";
+import type { DbIssue } from "@/lib/supabase";
 
-const SCORE_LABELS = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
+const SCORE_LABELS_KO = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
 const SCORE_LABELS_EN = ["Strongly\nOppose", "Oppose", "Neutral", "Support", "Strongly\nSupport"];
 const SCORE_COLORS = ["#ef4444", "#f97316", "#94a3b8", "#34d399", "#10b981"];
 
-type VoteState = Record<string, number | null>; // 1–5
+type VoteState = Record<string, number | null>;
 
-function ScoreDistributionBar({ scores }: { scores: number[] }) {
-  const total = scores.reduce((a, b) => a + b, 0) || 1;
-  return (
-    <div className="flex rounded-full overflow-hidden h-2 w-full">
-      {scores.map((count, i) => {
-        const pct = (count / total) * 100;
-        return (
-          <motion.div
-            key={i}
-            animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            style={{ background: SCORE_COLORS[i] }}
-            className="h-full"
-          />
-        );
-      })}
-    </div>
-  );
+function expiresInText(expiresAt: string, lang: "en" | "ko"): string {
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return lang === "en" ? "Expired" : "만료됨";
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  if (days > 0) return lang === "en" ? `${days}d ${hours}h` : `${days}일 ${hours}시간`;
+  return lang === "en" ? `${hours}h` : `${hours}시간`;
 }
 
 function VoteCard({
   issue,
-  onVote,
   voted,
   onChainVote,
+  onVoteDone,
 }: {
-  issue: Issue;
-  onVote: (id: string, score: number) => void;
+  issue: DbIssue;
   voted: number | null;
   onChainVote: (issueId: string, score: number) => Promise<string | null>;
+  onVoteDone: (id: string, score: number) => void;
 }) {
-  const [showChart, setShowChart] = useState(false);
   const [txSig, setTxSig] = useState<string | null>(null);
-  const [onChainLoading, setOnChainLoading] = useState(false);
-  const [onChainError, setOnChainError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simulated score distribution (before real on-chain data)
-  const mockScores = [
-    Math.round(issue.noVotes * 0.4),
-    Math.round(issue.noVotes * 0.6),
-    Math.round((issue.yesVotes + issue.noVotes) * 0.05),
-    Math.round(issue.yesVotes * 0.4),
-    Math.round(issue.yesVotes * 0.6),
-  ];
-
-  const scoreLabels = issue.lang === "en" ? SCORE_LABELS_EN : SCORE_LABELS;
+  const isEN = issue.lang === "en";
+  const scoreLabels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
+  const votedColor = voted !== null ? SCORE_COLORS[voted - 1] : "#94a3b8";
+  const votedLabel = voted !== null ? scoreLabels[voted - 1] : null;
 
   async function handleVote(score: number) {
     if (voted !== null) return;
-    onVote(issue.id, score);
-    setOnChainLoading(true);
-    setOnChainError(null);
+    setLoading(true);
+    setError(null);
     try {
       const sig = await onChainVote(issue.id, score);
       if (sig) setTxSig(sig);
-      else setOnChainError("no wallet / not signed");
+      onVoteDone(issue.id, score);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setOnChainError(msg);
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setOnChainLoading(false);
+      setLoading(false);
     }
   }
-
-  const votedLabel = voted !== null ? scoreLabels[voted - 1] : null;
-  const votedColor = voted !== null ? SCORE_COLORS[voted - 1] : "#94a3b8";
 
   return (
     <motion.div
@@ -96,88 +72,21 @@ function VoteCard({
       <div className="p-4 pb-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-medium bg-indigo-900/50 text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-800/50">
-            {issue.flag} {issue.category}
+            {isEN ? "🇺🇸" : "🇰🇷"} {issue.category}
           </span>
           <div className="flex items-center gap-1 text-[var(--muted)] text-xs">
             <Clock size={12} />
-            {issue.expiresIn} {issue.lang === "en" ? "left" : "남음"}
+            {expiresInText(issue.expires_at, issue.lang)} {isEN ? "left" : "남음"}
           </div>
         </div>
         <h3 className="text-white font-bold text-base leading-snug mb-1">{issue.title}</h3>
         <p className="text-[var(--muted)] text-xs leading-relaxed line-clamp-2">{issue.summary}</p>
       </div>
 
-      {/* score distribution bar */}
-      <div className="px-4 mb-3">
-        <ScoreDistributionBar scores={mockScores} />
-        <div className="flex justify-between mt-1.5">
-          <span className="text-red-400 text-[10px] font-bold">{issue.lang === "en" ? "Oppose" : "반대측"}</span>
-          <span className="text-[var(--muted)] text-[10px]">{issue.lang === "en" ? "Neutral" : "중립"}</span>
-          <span className="text-emerald-400 text-[10px] font-bold">{issue.lang === "en" ? "Support" : "찬성측"}</span>
-        </div>
-      </div>
-
-      {/* chart toggle */}
-      <div className="px-4 mb-3">
-        <button
-          onClick={() => setShowChart(!showChart)}
-          className="flex items-center gap-1 text-[var(--muted)] hover:text-indigo-400 text-xs transition-colors"
-        >
-          {issue.lang === "en" ? "Live trend" : "실시간 추이"} {showChart ? "▲" : "▼"}
-        </button>
-        <AnimatePresence>
-          {showChart && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 120, opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mt-2"
-            >
-              <ResponsiveContainer width="100%" height={110}>
-                <AreaChart data={issue.trend}>
-                  <defs>
-                    <linearGradient id={`yes-${issue.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id={`no-${issue.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="time" tick={{ fill: "#64748b", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} hide />
-                  <Tooltip
-                    contentStyle={{ background: "#0f0f1a", border: "1px solid #1e1e35", borderRadius: 8, fontSize: 11 }}
-                    labelStyle={{ color: "#94a3b8" }}
-                    formatter={(v) => [`${v}%`]}
-                  />
-                  <Area type="monotone" dataKey="yes" stroke="#10b981" strokeWidth={2} fill={`url(#yes-${issue.id})`} name={issue.lang === "en" ? "Support" : "찬성"} />
-                  <Area type="monotone" dataKey="no" stroke="#f43f5e" strokeWidth={2} fill={`url(#no-${issue.id})`} name={issue.lang === "en" ? "Oppose" : "반대"} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* meta */}
-      <div className="px-4 pb-3 flex items-center gap-3 text-[var(--muted)] text-xs">
-        <div className="flex items-center gap-1">
-          <Users size={12} />
-          {(issue.totalVoters / 1000).toFixed(0)}K {issue.lang === "en" ? "voted" : "참여"}
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {issue.tags.map((tag) => (
-            <span key={tag} className="text-indigo-400 text-[10px]">#{tag}</span>
-          ))}
-        </div>
-      </div>
-
       {/* vote section */}
       <div className="p-3 border-t border-[var(--card-border)]">
         {voted !== null ? (
-          <div className="flex flex-col items-center gap-2 py-2">
+          <div className="flex flex-col items-center gap-2 py-1">
             <div className="flex items-center gap-2">
               <span
                 className="text-sm font-bold px-3 py-1 rounded-full border"
@@ -190,10 +99,10 @@ function VoteCard({
                 <span className="text-yellow-400 font-semibold text-sm">+10 VTX</span>
               </div>
             </div>
-            {onChainLoading && (
+            {loading && (
               <p className="text-indigo-400 text-xs flex items-center gap-1">
                 <span className="w-3 h-3 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                {issue.lang === "en" ? "Recording on Solana..." : "솔라나 기록 중..."}
+                {isEN ? "Recording on Solana..." : "솔라나 기록 중..."}
               </p>
             )}
             {txSig && (
@@ -207,8 +116,8 @@ function VoteCard({
                 View on Solscan
               </a>
             )}
-            {onChainError && !txSig && (
-              <p className="text-rose-400 text-[10px] max-w-[240px] break-all">⚠ {onChainError}</p>
+            {error && !txSig && (
+              <p className="text-rose-400 text-[10px] max-w-[240px] break-all">⚠ {error}</p>
             )}
           </div>
         ) : (
@@ -218,7 +127,8 @@ function VoteCard({
                 key={score}
                 whileTap={{ scale: 0.92 }}
                 onClick={() => handleVote(score)}
-                className="flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all text-[10px] font-bold leading-tight"
+                disabled={loading}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all text-[10px] font-bold leading-tight disabled:opacity-50"
                 style={{
                   color: SCORE_COLORS[score - 1],
                   borderColor: SCORE_COLORS[score - 1] + "50",
@@ -226,7 +136,7 @@ function VoteCard({
                 }}
               >
                 <span className="text-base">{["😡", "🙁", "😐", "🙂", "😊"][score - 1]}</span>
-                <span className="text-center">{(issue.lang === "en" ? SCORE_LABELS_EN : SCORE_LABELS)[score - 1]}</span>
+                <span className="text-center whitespace-pre-line">{scoreLabels[score - 1]}</span>
               </motion.button>
             ))}
           </div>
@@ -237,10 +147,13 @@ function VoteCard({
 }
 
 export default function VotePage() {
+  const [issues, setIssues] = useState<DbIssue[]>([]);
+  const [issuesLoading, setIssuesLoading] = useState(true);
   const [votes, setVotes] = useState<VoteState>({});
   const [totalEarned, setTotalEarned] = useState(50);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
+
   const { authenticated, login } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const { signTransaction } = useSignTransaction();
@@ -250,13 +163,40 @@ export default function VotePage() {
     (w) => ("walletClientType" in w && (w as Record<string, unknown>).walletClientType === "privy") ||
            ("name" in w && String((w as Record<string, unknown>).name).toLowerCase().includes("privy"))
   ) ?? null;
-  const solanaWallet = privyWallet ?? wallets[0] ?? null;
 
+  // Restore lang from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem("rs_lang") as "en" | "ko" | null;
+    if (stored) {
+      setLang(stored);
+      setFilter(stored === "en" ? "All" : "전체");
+    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "rs_lang" && (e.newValue === "en" || e.newValue === "ko")) {
+        setLang(e.newValue);
+        setFilter(e.newValue === "en" ? "All" : "전체");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Auto-create Privy wallet
   useEffect(() => {
     if (authenticated && walletsReady && wallets.length === 0) {
       createWallet().catch(() => {});
     }
   }, [authenticated, walletsReady, wallets.length]);
+
+  // Fetch issues from DB when lang changes
+  useEffect(() => {
+    setIssuesLoading(true);
+    fetch(`/api/issues?lang=${lang}`)
+      .then((r) => r.json())
+      .then((data) => setIssues(Array.isArray(data) ? data : []))
+      .catch(() => setIssues([]))
+      .finally(() => setIssuesLoading(false));
+  }, [lang]);
 
   async function onChainVote(issueId: string, score: number): Promise<string | null> {
     const wallet = privyWallet ?? wallets[0] ?? null;
@@ -280,20 +220,6 @@ export default function VotePage() {
     return data.signature as string;
   }
 
-  const categoriesEn = ["All", "Tech & AI", "Labor & Economy", "Finance & Tax", "Energy & Climate"];
-  const categoriesKo = ["전체", "기술·AI", "노동·경제", "금융·세금", "에너지·환경"];
-  const categories = lang === "en" ? categoriesEn : categoriesKo;
-
-  const byLang = MOCK_ISSUES.filter((i) => i.lang === lang);
-  const filtered = filter === "All" || filter === "전체"
-    ? byLang
-    : byLang.filter((i) => i.category === filter);
-
-  function handleVote(id: string, score: number) {
-    setVotes((prev) => ({ ...prev, [id]: score }));
-    setTotalEarned((prev) => prev + 10);
-  }
-
   function switchLang(l: "en" | "ko") {
     setLang(l);
     setFilter(l === "en" ? "All" : "전체");
@@ -301,13 +227,19 @@ export default function VotePage() {
     window.dispatchEvent(new StorageEvent("storage", { key: "rs_lang", newValue: l }));
   }
 
+  // Derive unique categories from loaded issues
+  const categories = ["All", ...Array.from(new Set(issues.map((i) => i.category)))];
+  const filtered = filter === "All" || filter === "전체"
+    ? issues
+    : issues.filter((i) => i.category === filter);
+
   return (
     <div className="min-h-screen bg-[var(--background)]">
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-white font-bold text-lg">🗳️ {lang === "en" ? "Today's Issues" : "오늘의 안건"}</h1>
-            <p className="text-[var(--muted)] text-xs">{byLang.length} {lang === "en" ? "live now" : "개 진행 중"}</p>
+            <p className="text-[var(--muted)] text-xs">{issues.length} {lang === "en" ? "live now" : "개 진행 중"}</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex bg-[var(--card)] border border-[var(--card-border)] rounded-xl overflow-hidden">
@@ -330,19 +262,22 @@ export default function VotePage() {
             </div>
           </div>
         </div>
-        <div className="px-4 pb-3 flex items-center justify-between">
+
+        <div className="px-4 pb-2">
           {authenticated ? (
             <p className="text-emerald-400 text-xs flex items-center gap-1">
               <Shield size={12} />
-              Civic verified — votes recorded on Solana
+              {lang === "en" ? "Verified — votes recorded on Solana" : "인증됨 — 솔라나에 기록"}
             </p>
           ) : (
             <button onClick={login} className="text-indigo-400 text-xs flex items-center gap-1 hover:text-indigo-300 transition-colors">
               <Shield size={12} />
-              Sign in to record votes on-chain
+              {lang === "en" ? "Sign in to record votes on-chain" : "로그인 후 온체인 기록"}
             </button>
           )}
         </div>
+
+        {/* Category filter — derived from DB */}
         <div className="overflow-x-auto pb-3 px-4">
           <div className="flex gap-2 w-max">
             {categories.map((cat) => (
@@ -363,17 +298,33 @@ export default function VotePage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4">
-        <AnimatePresence>
-          {filtered.map((issue) => (
-            <VoteCard
-              key={issue.id}
-              issue={issue}
-              onVote={handleVote}
-              voted={votes[issue.id] ?? null}
-              onChainVote={onChainVote}
-            />
-          ))}
-        </AnimatePresence>
+        {issuesLoading ? (
+          <div className="flex justify-center py-24">
+            <div className="w-8 h-8 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center py-24 gap-2">
+            <p className="text-4xl">🗳️</p>
+            <p className="text-[var(--muted)] text-sm">
+              {lang === "en" ? "No issues available" : "등록된 안건이 없어요"}
+            </p>
+          </div>
+        ) : (
+          <AnimatePresence>
+            {filtered.map((issue) => (
+              <VoteCard
+                key={issue.id}
+                issue={issue}
+                voted={votes[issue.id] ?? null}
+                onChainVote={onChainVote}
+                onVoteDone={(id, score) => {
+                  setVotes((prev) => ({ ...prev, [id]: score }));
+                  setTotalEarned((prev) => prev + 10);
+                }}
+              />
+            ))}
+          </AnimatePresence>
+        )}
       </div>
 
       <Navbar />
