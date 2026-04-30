@@ -3,11 +3,23 @@ import {
   PublicKey,
   VersionedTransaction,
   TransactionMessage,
+  TransactionInstruction,
   SystemProgram,
   clusterApiUrl,
 } from "@solana/web3.js";
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import IDL from "./idl.json";
+
+const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+const SCORE_MEMO = ["Strongly Oppose", "Oppose", "Neutral", "Support", "Strongly Support"];
+
+export function memoIx(text: string): TransactionInstruction {
+  return new TransactionInstruction({
+    keys: [],
+    programId: MEMO_PROGRAM_ID,
+    data: Buffer.from(text, "utf-8"),
+  });
+}
 
 export const PROGRAM_ID = new PublicKey("24DscDehhLv8WamjRUc3Zj3B9hSt8wPeiiLCFX7r1XWy");
 export const CONNECTION = new Connection(clusterApiUrl("devnet"), "confirmed");
@@ -74,6 +86,7 @@ export async function buildVoteTransaction(
   }
 
   instructions.push(voteIx as never);
+  instructions.push(memoIx(`RealSentiment|issue:${issueId}|score:${score}/5|${SCORE_MEMO[score - 1]}`) as never);
 
   const { blockhash } = await CONNECTION.getLatestBlockhash();
   const message = new TransactionMessage({

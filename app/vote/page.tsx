@@ -8,6 +8,7 @@ import { Clock, Coins, Shield, ExternalLink } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets, useSignTransaction, useCreateWallet } from "@privy-io/react-auth/solana";
 import Navbar from "@/components/Navbar";
+import VerifyGuideModal from "@/components/VerifyGuideModal";
 import { buildVoteTransaction } from "@/lib/solana";
 import { fetchVoterHistory } from "@/lib/queries";
 import type { DbIssue } from "@/lib/supabase";
@@ -162,6 +163,7 @@ export default function VotePage() {
   const [totalEarned, setTotalEarned] = useState(50);
   const [lang, setLang] = useState<"en" | "ko">("en");
   const [filter, setFilter] = useState("All");
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const { authenticated, login } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
@@ -264,7 +266,13 @@ export default function VotePage() {
       <div className="sticky top-0 z-40 bg-[var(--background)]/90 backdrop-blur-xl border-b border-[var(--card-border)]">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-white font-bold text-lg">🗳️ {lang === "en" ? "Today's Issues" : "오늘의 안건"}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-white font-bold text-lg">🗳️ {lang === "en" ? "Today's Issues" : "오늘의 안건"}</h1>
+              <button
+                onClick={() => setGuideOpen(true)}
+                className="w-5 h-5 rounded-full border border-[var(--card-border)] text-[var(--muted)] hover:text-indigo-400 hover:border-indigo-700 transition-all text-[10px] font-bold flex items-center justify-center"
+              >?</button>
+            </div>
             <p className="text-[var(--muted)] text-xs">{issues.length} {lang === "en" ? "live now" : "개 진행 중"}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -354,6 +362,7 @@ export default function VotePage() {
         )}
       </div>
 
+      <VerifyGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} lang={lang} />
       <Navbar />
     </div>
   );

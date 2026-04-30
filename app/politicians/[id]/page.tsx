@@ -15,7 +15,7 @@ import {
   type OnChainPolitician,
   type PoliticianStance,
 } from "@/lib/queries";
-import { CONNECTION, PROGRAM_ID } from "@/lib/solana";
+import { CONNECTION, PROGRAM_ID, memoIx } from "@/lib/solana";
 import {
   PublicKey,
   VersionedTransaction,
@@ -89,7 +89,9 @@ async function buildRatePoliticianTx(
       instructions.push(SystemProgram.transfer({ fromPubkey: feePayer, toPubkey: voter, lamports: 3_000_000 }));
     }
   }
+  const SCORE_MEMO = ["Strongly Oppose", "Oppose", "Neutral", "Support", "Strongly Support"];
   instructions.push(ix as never);
+  instructions.push(memoIx(`RealSentiment|politician:${politicianId}|score:${score}/5|${SCORE_MEMO[score - 1]}`) as never);
 
   const { blockhash } = await CONNECTION.getLatestBlockhash();
   return new VersionedTransaction(
