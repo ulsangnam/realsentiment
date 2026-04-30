@@ -38,9 +38,10 @@ function VoteCard({
   issue: DbIssue;
   voted: number | null;
   walletReady: boolean;
+  voterAddress: string | null;
   onChainVote: (issueId: string, score: number) => Promise<string | null>;
   onVoteDone: (id: string, score: number) => void;
-  onAlreadyVoted: (id: string) => void;
+  onAlreadyVoted: (id: string, score: number) => void;
 }) {
   const [txSig, setTxSig] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -60,16 +61,25 @@ function VoteCard({
     setLoading(true);
     setError(null);
     try {
+      // Pre-check: VoteRecord already on chain?
+      if (voterAddress) {
+        const existing = await fetchIssueVoteRecord(voterAddress, issue.id);
+        if (existing !== null) {
+          setLocalVoted(existing);
+          onAlreadyVoted(issue.id, existing);
+          return;
+        }
+      }
       const sig = await onChainVote(issue.id, score);
       if (sig) setTxSig(sig);
       setLocalVoted(score);
       onVoteDone(issue.id, score);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      // "already in use" = VoteRecord PDA exists → already voted
       if (msg.includes("already in use") || msg.includes("0x0")) {
-        setLocalVoted(score); // optimistic: show what they tried to vote
-        onAlreadyVoted(issue.id);
+        // fallback: couldn't pre-check, treat as already voted
+        setLocalVoted(score);
+        onAlreadyVoted(issue.id, score);
       } else {
         setError(msg);
       }
@@ -364,16 +374,14 @@ export default function VotePage() {
                 issue={issue}
                 voted={votes[issue.id] ?? null}
                 walletReady={walletReady}
+                voterAddress={activeWallet?.address ?? null}
                 onChainVote={onChainVote}
                 onVoteDone={(id, score) => {
                   setVotes((prev) => ({ ...prev, [id]: score }));
                   setTotalEarned((prev) => prev + 10);
                 }}
-                onAlreadyVoted={async (id) => {
-                  const wallet = activeWallet;
-                  if (!wallet) return;
-                  const s = await fetchIssueVoteRecord(wallet.address, id);
-                  if (s) setVotes((prev) => ({ ...prev, [id]: s }));
+                onAlreadyVoted={(id, score) => {
+                  setVotes((prev) => ({ ...prev, [id]: score }));
                 }}
               />
             ))}
