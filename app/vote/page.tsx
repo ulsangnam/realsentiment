@@ -48,8 +48,11 @@ function VoteCard({
   const [error, setError] = useState<string | null>(null);
   const [localVoted, setLocalVoted] = useState<number | null>(voted);
 
-  // sync prop → local (for when parent pre-loads history)
-  useEffect(() => { setLocalVoted(voted); }, [voted]);
+  // sync prop → local; clear stale error when history confirms vote
+  useEffect(() => {
+    setLocalVoted(voted);
+    if (voted !== null) setError(null);
+  }, [voted]);
 
   const isEN = issue.lang === "en";
   const scoreLabels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
@@ -230,15 +233,24 @@ export default function VotePage() {
     }
   }, [authenticated, walletsReady, wallets.length]);
 
-  // Load existing vote records so already-voted issues show correctly
+  // Load existing vote records — localStorage first (instant), then on-chain (authoritative)
   useEffect(() => {
     if (!activeWallet) return;
+    const cacheKey = `votes_${activeWallet.address}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try { setVotes((prev) => ({ ...JSON.parse(cached), ...prev })); } catch {}
+    }
     setHistoryLoading(true);
     fetchVoterHistory(activeWallet.address)
       .then((history) => {
         const map: VoteState = {};
         for (const h of history) map[h.issueId] = h.score;
-        setVotes((prev) => ({ ...map, ...prev })); // prev wins if just voted this session
+        setVotes((prev) => {
+          const merged = { ...map, ...prev };
+          localStorage.setItem(cacheKey, JSON.stringify(merged));
+          return merged;
+        });
       })
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
@@ -424,11 +436,19 @@ export default function VotePage() {
                   voterAddress={activeWallet?.address ?? null}
                   onChainVote={onChainVote}
                   onVoteDone={(id, score) => {
-                    setVotes((prev) => ({ ...prev, [id]: score }));
+                    setVotes((prev) => {
+                      const next = { ...prev, [id]: score };
+                      if (activeWallet) localStorage.setItem(`votes_${activeWallet.address}`, JSON.stringify(next));
+                      return next;
+                    });
                     setTotalEarned((prev) => prev + 10);
                   }}
                   onAlreadyVoted={(id, score) => {
-                    setVotes((prev) => ({ ...prev, [id]: score }));
+                    setVotes((prev) => {
+                      const next = { ...prev, [id]: score };
+                      if (activeWallet) localStorage.setItem(`votes_${activeWallet.address}`, JSON.stringify(next));
+                      return next;
+                    });
                   }}
                 />
               ))}

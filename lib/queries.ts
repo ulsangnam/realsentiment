@@ -90,7 +90,7 @@ export async function fetchVoterHistory(walletAddress: string): Promise<VoterHis
     });
 
     const records: VoterHistory[] = accounts.map((acc) => {
-      const data = acc.account.data;
+      const data = Buffer.from(acc.account.data);
       const idLen = data.readUInt32LE(40);
       const issueId = data.slice(44, 44 + idLen).toString("utf8");
       const score = data[44 + idLen];
