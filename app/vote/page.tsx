@@ -154,6 +154,9 @@ function VoteCard({
                 <span className="w-4 h-4 border border-indigo-400 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
+            {error && (
+              <p className="col-span-5 text-rose-400 text-[10px] text-center break-all">⚠ {error}</p>
+            )}
             {walletReady && [1, 2, 3, 4, 5].map((score) => (
               <motion.button
                 key={score}
@@ -198,8 +201,8 @@ export default function VotePage() {
            ("name" in w && String((w as Record<string, unknown>).name).toLowerCase().includes("privy"))
   ) ?? null;
   const activeWallet = privyWallet ?? wallets[0] ?? null;
-  // Ready = wallets have loaded AND we either have a wallet or confirmed there isn't one
-  const walletReady = walletsReady && !historyLoading;
+  // Ready = wallets loaded AND a wallet actually exists AND history done
+  const walletReady = walletsReady && !historyLoading && !!activeWallet;
 
   // Restore lang from localStorage
   useEffect(() => {
