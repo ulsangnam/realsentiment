@@ -52,6 +52,16 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("vote API error:", message);
+
+    // VoteRecord PDA already exists → "already in use" in simulation logs
+    const isAlreadyVoted =
+      message.includes("already in use") ||
+      message.includes("0x0") ||
+      message.includes("already_voted");
+    if (isAlreadyVoted) {
+      return NextResponse.json({ error: "already_voted" }, { status: 409 });
+    }
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

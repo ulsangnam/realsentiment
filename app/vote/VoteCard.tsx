@@ -101,8 +101,7 @@ export default function VoteCard({
       onVoteDone(issue.id, score);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("already in use") || msg.includes("0x0")) {
-        // Fallback: couldn't pre-check — treat as already voted
+      if (msg.includes("already_voted") || msg.includes("already in use") || msg.includes("0x0")) {
         setLocalVoted(score);
         onAlreadyVoted(issue.id, score);
       } else {

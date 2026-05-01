@@ -139,6 +139,7 @@ export default function VotePage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "vote API failed");
     return data.signature as string;
+
   }
 
   /**
