@@ -100,8 +100,23 @@ export default function VoteCard({
       setLocalVoted(score);
       onVoteDone(issue.id, score);
     } catch (e) {
+      // Re-check on-chain: Privy simulates client-side before signing,
+      // so "already in use" errors arrive here before the API is even called.
+      // Authoritative source is the chain, not the error message string.
+      if (voterAddress) {
+        try {
+          const { fetchIssueVoteRecord } = await import("@/lib/queries");
+          const existing = await fetchIssueVoteRecord(voterAddress, issue.id);
+          if (existing !== null) {
+            setLocalVoted(existing);
+            onAlreadyVoted(issue.id, existing);
+            return;
+          }
+        } catch {}
+      }
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("already_voted") || msg.includes("already in use") || msg.includes("0x0")) {
+      // API-level already_voted is still a safe fallback
+      if (msg.includes("already_voted")) {
         setLocalVoted(score);
         onAlreadyVoted(issue.id, score);
       } else {
