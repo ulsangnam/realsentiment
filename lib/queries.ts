@@ -111,21 +111,27 @@ export async function fetchVoterHistory(walletAddress: string): Promise<VoterHis
   }
 }
 
-// Returns the score (1-5) if voter already voted on this issue, else null
+// Returns the score (1-5) if voter already voted on this issue, else null.
+// Retries up to 3x with 400ms backoff — devnet RPC transiently returns null.
 export async function fetchIssueVoteRecord(voterAddress: string, issueId: string): Promise<number | null> {
-  try {
-    const voter = new PublicKey(voterAddress);
-    const pda = getVotePDA(voter, issueId);
-    const info = await CONNECTION.getAccountInfo(pda);
-    if (!info) return null;
-    const data = Buffer.from(info.data);
-    // discriminator(8) + voter(32) + issueId_len(4) + issueId(?) + score(1)
-    const idLen = data.readUInt32LE(40);
-    const score = data[44 + idLen];
-    return score >= 1 && score <= 5 ? score : null;
-  } catch {
-    return null;
+  const voter = new PublicKey(voterAddress);
+  const pda = getVotePDA(voter, issueId);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const info = await CONNECTION.getAccountInfo(pda, "confirmed");
+      if (!info) {
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 400));
+        continue;
+      }
+      const data = Buffer.from(info.data);
+      const idLen = data.readUInt32LE(40);
+      const score = data[44 + idLen];
+      return score >= 1 && score <= 5 ? score : null;
+    } catch {
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 400));
+    }
   }
+  return null;
 }
 
 export function computePoliticalLeaning(history: VoterHistory[]): {
