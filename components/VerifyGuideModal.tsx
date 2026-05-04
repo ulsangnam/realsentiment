@@ -102,8 +102,8 @@ export default function VerifyGuideModal({
                 </p>
                 {[
                   isEN
-                    ? ["1", "Click "View on Solscan" after voting"]
-                    : ["1", "투표 후 "View on Solscan" 클릭"],
+                    ? ["1", 'Click "View on Solscan" after voting']
+                    : ["1", '투표 후 "View on Solscan" 클릭'],
                   isEN
                     ? ["2", "Find the Memo field in Transaction Details"]
                     : ["2", "Transaction Details에서 Memo 필드 확인"],
