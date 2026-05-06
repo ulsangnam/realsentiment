@@ -25,4 +25,8 @@ export type DbIssue = {
   lang: "en" | "ko";
   leaning: number;
   expires_at: string;
+  // --- Crawl fields (optional — only present on crawled issues) ---
+  source_url?: string | null;
+  related_issue_ids?: string[] | null;
+  crawled_at?: string | null;
 };

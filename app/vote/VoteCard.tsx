@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Clock, Coins, ExternalLink } from "lucide-react";
 import type { DbIssue } from "@/lib/supabase";
+import type { OnChainIssue } from "@/lib/queries";
 
 const SCORE_LABELS_KO = ["매우반대", "반대", "중립", "찬성", "매우찬성"];
 const SCORE_LABELS_EN = ["Strongly\nOppose", "Oppose", "Neutral", "Support", "Strongly\nSupport"];
 export const SCORE_COLORS = ["#ef4444", "#f97316", "#94a3b8", "#34d399", "#10b981"];
+const SCORE_EMOJI = ["😡", "🙁", "😐", "🙂", "😊"];
 
 /** Returns a human-readable time-until-expiry string. */
 export function expiresInText(expiresAt: string, lang: "en" | "ko"): string {
@@ -34,16 +36,99 @@ export interface VoteCardProps {
 }
 
 /**
+ * Finds the first transaction that created the vote record PDA,
+ * then links to that transaction on Solscan so the user can see the memo.
+ */
+function SolscanVoteLink({ voterAddress, issueId, isEN }: { voterAddress: string; issueId: string; isEN: boolean }) {
+  const [href, setHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { PublicKey, Connection, clusterApiUrl } = await import("@solana/web3.js");
+        const { getVotePDA } = await import("@/lib/solana");
+        const pda = getVotePDA(new PublicKey(voterAddress), issueId);
+        const conn = new Connection(clusterApiUrl("devnet"), "confirmed");
+        // The creation tx is the oldest one — fetch last (oldest) signature for this PDA
+        const sigs = await conn.getSignaturesForAddress(pda, { limit: 10 });
+        const oldest = sigs[sigs.length - 1];
+        if (!cancelled) {
+          if (oldest) {
+            setHref(`https://solscan.io/tx/${oldest.signature}?cluster=devnet`);
+          } else {
+            // fallback: account page (vote may not be on chain)
+            setHref(`https://solscan.io/account/${pda.toBase58()}?cluster=devnet`);
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [voterAddress, issueId]);
+
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
+    >
+      <ExternalLink size={11} />
+      {isEN ? "View on Solscan" : "Solscan에서 보기"}
+    </a>
+  );
+}
+
+/** Animated score distribution bar + emoji breakdown shown after voting. */
+function CommunityResults({ data, isEN }: { data: OnChainIssue; isEN: boolean }) {
+  const total = data.voteCount || 1;
+  return (
+    <div className="w-full pt-3 mt-1 border-t border-[var(--card-border)]">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[var(--muted)] text-[10px] font-medium">
+          {isEN ? "Community sentiment" : "커뮤니티 의견"}
+        </span>
+        <span className="text-[var(--muted)] text-[10px] font-mono">
+          {data.voteCount.toLocaleString()} {isEN ? "votes" : "명"} · avg {data.avgScore.toFixed(1)}
+        </span>
+      </div>
+      {/* Animated stacked bar */}
+      <div className="flex rounded-full overflow-hidden h-2.5 w-full mb-2.5 bg-[var(--card-border)]">
+        {data.scores.map((cnt, i) => (
+          <motion.div
+            key={i}
+            initial={{ width: 0 }}
+            animate={{ width: `${(cnt / total) * 100}%` }}
+            transition={{ duration: 0.55, delay: i * 0.04, ease: "easeOut" }}
+            style={{ background: SCORE_COLORS[i] }}
+            className="h-full"
+          />
+        ))}
+      </div>
+      {/* Emoji + count grid */}
+      <div className="grid grid-cols-5 gap-0.5">
+        {data.scores.map((cnt, i) => (
+          <div key={i} className="flex flex-col items-center gap-0.5">
+            <span className="text-sm">{SCORE_EMOJI[i]}</span>
+            <span
+              className="text-[9px] font-bold font-mono"
+              style={{ color: SCORE_COLORS[i] }}
+            >
+              {cnt}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * VoteCard — renders a single issue card with voting and vote-revision UI.
  *
- * Revision flow:
- *   1. User clicks "의견 수정" → modifying=true, score grid appears
- *   2. User picks a score → handleRevise() called → API call
- *   3. On success: localVoted updates, revised=true, modifying=false
- *   4. "✓ 수정됨" shown; button hidden for rest of session
- *
- * Daily limit is enforced server-side; canModify reflects the client-side
- * cache (localStorage) so the UI is consistent across mounts.
+ * After voting, fetches on-chain aggregate results and shows a community
+ * sentiment distribution so the user can see how they compare to others.
  */
 export default function VoteCard({
   issue,
@@ -62,14 +147,31 @@ export default function VoteCard({
   const [localVoted, setLocalVoted] = useState<number | null>(voted);
 
   // Revision UI state
-  const [modifying, setModifying] = useState(false); // score picker visible
-  const [revised, setRevised] = useState(false);     // revision already submitted this session
+  const [modifying, setModifying] = useState(false);
+  const [revised, setRevised] = useState(false);
+
+  // On-chain aggregate results (fetched after voting)
+  const [onChainData, setOnChainData] = useState<OnChainIssue | null>(null);
 
   // Sync prop → local state; clear stale error when history confirms vote
   useEffect(() => {
     setLocalVoted(voted);
     if (voted !== null) setError(null);
   }, [voted]);
+
+  // Fetch community results whenever the card enters voted state
+  useEffect(() => {
+    if (localVoted === null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchIssue } = await import("@/lib/queries");
+        const data = await fetchIssue(issue.id);
+        if (!cancelled && data) setOnChainData(data);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [localVoted, issue.id]);
 
   const isEN = issue.lang === "en";
   const scoreLabels = isEN ? SCORE_LABELS_EN : SCORE_LABELS_KO;
@@ -102,7 +204,6 @@ export default function VoteCard({
     } catch (e) {
       // Re-check on-chain: Privy simulates client-side before signing,
       // so "already in use" errors arrive here before the API is even called.
-      // Authoritative source is the chain, not the error message string.
       if (voterAddress) {
         try {
           const { fetchIssueVoteRecord } = await import("@/lib/queries");
@@ -115,7 +216,6 @@ export default function VoteCard({
         } catch {}
       }
       const msg = e instanceof Error ? e.message : String(e);
-      // API-level already_voted is still a safe fallback
       if (msg.includes("already_voted")) {
         setLocalVoted(score);
         onAlreadyVoted(issue.id, score);
@@ -127,12 +227,6 @@ export default function VoteCard({
     }
   }
 
-  /**
-   * Submits a vote revision via the parent handler.
-   * No-op if the score is unchanged.
-   *
-   * @param newScore - Replacement score chosen by the user (1–5)
-   */
   async function handleRevise(newScore: number) {
     if (localVoted === null || newScore === localVoted) {
       setModifying(false);
@@ -212,18 +306,43 @@ export default function VoteCard({
               </p>
             )}
 
-            {/* Solscan link after tx confirmed */}
-            {txSig && (
-              <a
-                href={`https://solscan.io/tx/${txSig}?cluster=devnet`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
-              >
-                <ExternalLink size={11} />
-                View on Solscan
-              </a>
+            {/* Community results — shown once on-chain data is fetched */}
+            {onChainData && onChainData.voteCount > 0 && (
+              <CommunityResults data={onChainData} isEN={isEN} />
             )}
+
+            {/* Related issues — shown only when the crawled issue has linked IDs */}
+            {issue.related_issue_ids && issue.related_issue_ids.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                <span className="text-[var(--muted)] text-[9px]">{isEN ? "Related:" : "관련:"}</span>
+                {issue.related_issue_ids.map((id) => (
+                  <span
+                    key={id}
+                    className="text-[9px] font-mono bg-indigo-900/30 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-800/30"
+                  >
+                    {id}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Solscan links */}
+            <div className="flex items-center gap-3">
+              {txSig && (
+                <a
+                  href={`https://solscan.io/tx/${txSig}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
+                >
+                  <ExternalLink size={11} />
+                  {isEN ? "Tx" : "트랜잭션"}
+                </a>
+              )}
+              {voterAddress && (
+                <SolscanVoteLink voterAddress={voterAddress} issueId={issue.id} isEN={isEN} />
+              )}
+            </div>
 
             {/* Error message (only when no tx sig) */}
             {error && !txSig && (
@@ -251,7 +370,7 @@ export default function VoteCard({
                       background: SCORE_COLORS[score - 1] + "12",
                     }}
                   >
-                    <span className="text-base">{["😡", "🙁", "😐", "🙂", "😊"][score - 1]}</span>
+                    <span className="text-base">{SCORE_EMOJI[score - 1]}</span>
                     <span className="text-center whitespace-pre-line">{scoreLabels[score - 1]}</span>
                   </motion.button>
                 ))}
@@ -298,7 +417,7 @@ export default function VoteCard({
                   background: SCORE_COLORS[score - 1] + "12",
                 }}
               >
-                <span className="text-base">{["😡", "🙁", "😐", "🙂", "😊"][score - 1]}</span>
+                <span className="text-base">{SCORE_EMOJI[score - 1]}</span>
                 <span className="text-center whitespace-pre-line">{scoreLabels[score - 1]}</span>
               </motion.button>
             ))}
